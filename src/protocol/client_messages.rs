@@ -174,7 +174,10 @@ pub enum ClientMessage {
     ///
     /// Sent as the player selects tiles, allowing spectators and
     /// other players to see the selection in real-time.
-    SelectionUpdate { positions: Vec<Position> },
+    SelectionUpdate {
+        game_id: String,
+        positions: Vec<Position>,
+    },
 
     // ========================================================================
     // Timer Vote Messages
