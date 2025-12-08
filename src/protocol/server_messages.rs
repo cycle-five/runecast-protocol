@@ -256,6 +256,7 @@ pub enum ServerMessage {
     /// Another player's tile selection (for live preview).
     SelectionUpdate {
         player_id: String,
+        game_id: String,
         positions: Vec<super::types::Position>,
     },
 
@@ -488,6 +489,7 @@ pub struct GameSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::types;
 
     #[test]
     fn test_heartbeat_ack_serialization() {
@@ -573,5 +575,21 @@ mod tests {
             ServerMessage::error(ErrorCode::NotYourTurn).message_type(),
             "error"
         );
+    }
+
+    #[test]
+    fn test_selection_update_serialization() {
+        let msg = ServerMessage::SelectionUpdate {
+            player_id: "player1".to_string(),
+            game_id: "game1".to_string(),
+            positions: vec![
+                types::Position { row: 0, col: 0 },
+                types::Position { row: 0, col: 1 },
+            ],
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"selection_update""#));
+        assert!(json.contains(r#""player_id":"player1""#));
+        assert!(json.contains(r#""game_id":"game1""#));
     }
 }
