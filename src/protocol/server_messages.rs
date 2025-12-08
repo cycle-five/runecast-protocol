@@ -130,10 +130,13 @@ pub enum ServerMessage {
     /// Full game state snapshot.
     ///
     /// Sent when joining as spectator or when delta sync fails.
-    GameSnapshot { game: GameSnapshot },
+    GameSnapshot { game_id: String, game: GameSnapshot },
 
     /// Incremental game state update.
-    GameDelta { changes: Vec<GameChange> },
+    GameDelta {
+        game_id: String,
+        changes: Vec<GameChange>,
+    },
 
     /// Game has ended normally.
     GameOver {
@@ -179,6 +182,7 @@ pub enum ServerMessage {
     /// A word was successfully scored.
     WordScored {
         player_id: String,
+        game_id: String,
         word: String,
         score: i32,
         /// Positions that formed the word
@@ -196,6 +200,7 @@ pub enum ServerMessage {
     /// Turn changed to another player.
     TurnChanged {
         player_id: String,
+        game_id: String,
         round: u8,
         /// Time remaining for this turn (if timer active)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -203,14 +208,15 @@ pub enum ServerMessage {
     },
 
     /// A player passed their turn.
-    TurnPassed { player_id: String },
+    TurnPassed { player_id: String, game_id: String },
 
     /// Round number changed.
-    RoundChanged { round: u8, max_rounds: u8 },
+    RoundChanged { game_id: String, round: u8, max_rounds: u8 },
 
     /// Board was shuffled.
     BoardShuffled {
         player_id: String,
+        game_id: String,
         new_grid: Grid,
         gems_spent: i32,
     },
@@ -218,6 +224,7 @@ pub enum ServerMessage {
     /// A tile was swapped.
     TileSwapped {
         player_id: String,
+        game_id: String,
         row: usize,
         col: usize,
         old_letter: char,
@@ -226,10 +233,10 @@ pub enum ServerMessage {
     },
 
     /// Player entered swap mode (for animation).
-    SwapModeEntered { player_id: String },
+    SwapModeEntered { player_id: String, game_id: String },
 
     /// Player exited swap mode.
-    SwapModeExited { player_id: String },
+    SwapModeExited { player_id: String, game_id: String },
 
     // ========================================================================
     // Spectator Messages
@@ -242,13 +249,13 @@ pub enum ServerMessage {
     },
 
     /// A new spectator joined (broadcast to others).
-    SpectatorAdded { spectator: SpectatorInfo },
+    SpectatorAdded { spectator: SpectatorInfo, game_id: String },
 
     /// A spectator left.
-    SpectatorRemoved { spectator_id: String },
+    SpectatorRemoved { spectator_id: String, game_id: String },
 
     /// Spectator joined as player.
-    SpectatorBecamePlayer { player_id: String, username: String },
+    SpectatorBecamePlayer { player_id: String, username: String, game_id: String },
 
     // ========================================================================
     // Live Update Messages
@@ -264,25 +271,26 @@ pub enum ServerMessage {
     // Timer Vote Messages
     // ========================================================================
     /// Timer vote state changed.
-    TimerVoteUpdate { state: TimerVoteState },
+    TimerVoteUpdate { state: TimerVoteState, game_id: String },
 
     /// Turn timer started (vote passed).
     TurnTimerStarted {
         target_player_id: String,
+        game_id: String,
         seconds: u32,
     },
 
     /// Turn timer expired - player auto-passed.
-    TurnTimerExpired { player_id: String },
+    TurnTimerExpired { player_id: String, game_id: String },
 
     // ========================================================================
     // Queue Messages (Legacy)
     // ========================================================================
     /// Player joined the game queue.
-    QueueJoined { position: i32, total_in_queue: i32 },
+    QueueJoined { position: i32, total_in_queue: i32, game_id: String },
 
     /// Queue position updated.
-    QueueUpdate { position: i32, total_in_queue: i32 },
+    QueueUpdate { position: i32, total_in_queue: i32, game_id: String },
 
     /// Left the queue.
     QueueLeft,
@@ -434,7 +442,7 @@ impl ServerMessage {
                 | Self::HeartbeatAck { .. }
                 | Self::SelectionUpdate { .. }
                 | Self::TimerVoteUpdate {
-                    state: TimerVoteState::Idle
+                    state: TimerVoteState::Idle, ..
                 }
         )
     }

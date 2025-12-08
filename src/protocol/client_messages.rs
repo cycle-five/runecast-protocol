@@ -109,6 +109,7 @@ pub enum ClientMessage {
     /// The word is derived from the positions on the grid.
     /// Positions must form a valid path (adjacent cells, no repeats).
     SubmitWord {
+        game_id: String,
         /// The word being submitted (for validation)
         word: String,
         /// Grid positions forming the word path
@@ -118,28 +119,29 @@ pub enum ClientMessage {
     /// Pass your turn without submitting a word.
     ///
     /// Awards 0 points and advances to the next player.
-    PassTurn,
+    PassTurn { game_id: String },
 
     /// Shuffle the board (costs 1 gem).
     ///
     /// Randomizes tile positions while keeping their properties
     /// (letters, multipliers, gems stay on tiles, just positions change).
-    ShuffleBoard,
+    ShuffleBoard { game_id: String },
 
     /// Enter swap mode (for UI feedback).
     ///
     /// Broadcasts to other players that you're considering a swap.
     /// Triggers wobble animation on their screens.
-    EnterSwapMode,
+    EnterSwapMode { game_id: String },
 
     /// Exit swap mode without swapping.
-    ExitSwapMode,
+    ExitSwapMode { game_id: String },
 
     /// Swap a tile's letter (costs 3 gems).
     ///
     /// Changes the letter on a specific tile. The multiplier and gem
     /// status of the tile are preserved.
     SwapTile {
+        game_id: String,
         row: usize,
         col: usize,
         /// New letter (A-Z)
@@ -162,10 +164,10 @@ pub enum ClientMessage {
     JoinGameAsPlayer { game_id: String },
 
     /// Leave spectator mode and return to lobby view.
-    LeaveSpectator,
+    LeaveSpectator { game_id: String },
 
     /// Legacy leave game message.
-    LeaveGame,
+    LeaveGame { game_id: String },
 
     // ========================================================================
     // Live Update Messages
@@ -189,7 +191,7 @@ pub enum ClientMessage {
     /// - Not your turn
     /// - No vote already in progress
     /// - Not in cooldown
-    InitiateTimerVote,
+    InitiateTimerVote { game_id: String },
 
     /// Vote yes on an active timer vote.
     ///
@@ -198,7 +200,7 @@ pub enum ClientMessage {
     /// - You haven't already voted
     /// - You didn't initiate the vote
     /// - Not your turn
-    VoteForTimer,
+    VoteForTimer { game_id: String },
 
     // ========================================================================
     // Admin Messages
@@ -225,18 +227,18 @@ impl ClientMessage {
             Self::CreateGame { .. } => "create_game",
             Self::StartGame => "start_game",
             Self::SubmitWord { .. } => "submit_word",
-            Self::PassTurn => "pass_turn",
-            Self::ShuffleBoard => "shuffle_board",
-            Self::EnterSwapMode => "enter_swap_mode",
-            Self::ExitSwapMode => "exit_swap_mode",
+            Self::PassTurn { .. } => "pass_turn",
+            Self::ShuffleBoard { .. } => "shuffle_board",
+            Self::EnterSwapMode { .. } => "enter_swap_mode",
+            Self::ExitSwapMode { .. } => "exit_swap_mode",
             Self::SwapTile { .. } => "swap_tile",
             Self::SpectateGame { .. } => "join_game",
             Self::JoinGameAsPlayer { .. } => "join_game_as_player",
-            Self::LeaveSpectator => "leave_spectator",
-            Self::LeaveGame => "leave_game",
+            Self::LeaveSpectator { .. } => "leave_spectator",
+            Self::LeaveGame { .. } => "leave_game",
             Self::SelectionUpdate { .. } => "selection_update",
-            Self::InitiateTimerVote => "initiate_timer_vote",
-            Self::VoteForTimer => "vote_for_timer",
+            Self::InitiateTimerVote { .. } => "initiate_timer_vote",
+            Self::VoteForTimer { .. } => "vote_for_timer",
             Self::AdminGetGames => "admin_get_games",
             Self::AdminDeleteGame { .. } => "admin_delete_game",
         }
@@ -250,17 +252,17 @@ impl ClientMessage {
                 | Self::ToggleReady
                 | Self::StartGame
                 | Self::SubmitWord { .. }
-                | Self::PassTurn
-                | Self::ShuffleBoard
-                | Self::EnterSwapMode
-                | Self::ExitSwapMode
+                | Self::PassTurn { .. }
+                | Self::ShuffleBoard { .. }
+                | Self::EnterSwapMode { .. }
+                | Self::ExitSwapMode { .. }
                 | Self::SwapTile { .. }
                 | Self::SpectateGame { .. }
                 | Self::JoinGameAsPlayer { .. }
-                | Self::LeaveSpectator
+                | Self::LeaveSpectator { .. }
                 | Self::SelectionUpdate { .. }
-                | Self::InitiateTimerVote
-                | Self::VoteForTimer
+                | Self::InitiateTimerVote { .. }
+                | Self::VoteForTimer { .. }
                 | Self::AdminGetGames
                 | Self::AdminDeleteGame { .. }
         )
@@ -271,14 +273,14 @@ impl ClientMessage {
         matches!(
             self,
             Self::SubmitWord { .. }
-                | Self::PassTurn
-                | Self::ShuffleBoard
-                | Self::EnterSwapMode
-                | Self::ExitSwapMode
+                | Self::PassTurn { .. }
+                | Self::ShuffleBoard { .. }
+                | Self::EnterSwapMode { .. }
+                | Self::ExitSwapMode { .. }
                 | Self::SwapTile { .. }
                 | Self::SelectionUpdate { .. }
-                | Self::InitiateTimerVote
-                | Self::VoteForTimer
+                | Self::InitiateTimerVote { .. }
+                | Self::VoteForTimer { .. }
         )
     }
 
@@ -286,7 +288,7 @@ impl ClientMessage {
     pub fn requires_turn(&self) -> bool {
         matches!(
             self,
-            Self::SubmitWord { .. } | Self::PassTurn | Self::ShuffleBoard | Self::SwapTile { .. }
+            Self::SubmitWord { .. } | Self::PassTurn { .. } | Self::ShuffleBoard { .. } | Self::SwapTile { .. }
         )
     }
 }
@@ -317,6 +319,7 @@ mod tests {
     #[test]
     fn test_submit_word_serialization() {
         let msg = ClientMessage::SubmitWord {
+            game_id: "game_1".to_string(),
             word: "HELLO".to_string(),
             positions: vec![
                 Position { row: 0, col: 0 },
@@ -369,9 +372,10 @@ mod tests {
     #[test]
     fn test_requires_turn() {
         assert!(!ClientMessage::Heartbeat.requires_turn());
-        assert!(!ClientMessage::InitiateTimerVote.requires_turn());
-        assert!(ClientMessage::PassTurn.requires_turn());
+        assert!(!ClientMessage::InitiateTimerVote { game_id: "game_1".to_string() }.requires_turn());
+        assert!(ClientMessage::PassTurn { game_id: "game_1".to_string() }.requires_turn());
         assert!(ClientMessage::SubmitWord {
+            game_id: "game_1".to_string(),
             word: "TEST".to_string(),
             positions: vec![]
         }
