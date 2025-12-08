@@ -175,3 +175,5 @@ pub const PROTOCOL_VERSION: &str = "1.0.0";
 2. **Forces clean boundaries** - Protocol types can't accidentally depend on server internals
 3. **Version independently** - Protocol changes are explicit and trackable
 4. **Documentation** - Acts as API documentation for frontend developers
+
+> Part of [RuneCast](https://github.com/cycle-five/RuneCast). This is published for transparency and not intended as a general-purpose library.
