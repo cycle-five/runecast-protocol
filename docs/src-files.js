@@ -1,0 +1,2 @@
+createSrcSidebar('[["runecast_protocol",["",[["protocol",[],["client_messages.rs","envelope.rs","mod.rs","server_messages.rs","types.rs"]]],["lib.rs"]]]]');
+//{"start":19,"fragment_lengths":[133]}

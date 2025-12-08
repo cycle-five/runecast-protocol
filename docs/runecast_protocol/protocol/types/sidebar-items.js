@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ErrorCode","GameChange","GameMode","GameState","LobbyChange","LobbyType","Multiplier","TimerVoteState"],"struct":["AdminGameInfo","GamePlayerInfo","GameSummary","GridCell","LobbyGameInfo","LobbyGamePlayerInfo","LobbyPlayerInfo","PlayerInfo","Position","ScoreInfo","SpectatorInfo"],"type":["Grid"]};

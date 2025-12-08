@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HEARTBEAT_INTERVAL_MS","HEARTBEAT_TIMEOUT_MS","MAX_MESSAGE_SIZE","PROTOCOL_VERSION","RECONNECT_GRACE_MS"],"mod":["client_messages","compat","envelope","server_messages","types"]};
