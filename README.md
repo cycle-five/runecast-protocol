@@ -169,6 +169,13 @@ pub const MAX_MESSAGE_SIZE: usize = 65_536;
 pub const PROTOCOL_VERSION: &str = "1.0.0";
 ```
 
+## Documentation
+
+Full API documentation is automatically generated and published to GitHub Pages:
+- **[View Documentation](https://cycle-five.github.io/runecast-protocol/)**
+
+The documentation is rebuilt on every push to `master` via GitHub Actions.
+
 ## Why a Separate Crate?
 
 1. **Shared between server and potential Rust client** - If you ever build a Rust client or CLI tool, it can use these same types
