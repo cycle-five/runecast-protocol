@@ -446,6 +446,7 @@ impl ServerMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbySnapshot {
     pub lobby_id: String,
+    pub lobby_type: LobbyType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lobby_code: Option<String>,
     pub players: Vec<LobbyPlayerInfo>,
