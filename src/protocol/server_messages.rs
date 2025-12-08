@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use super::types::{
     AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameState, Grid, LobbyChange,
-    LobbyGameInfo, LobbyPlayerInfo, PlayerInfo, ScoreInfo, SpectatorInfo, TimerVoteState,
+    LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, ScoreInfo, SpectatorInfo,
+    TimerVoteState,
 };
 
 /// Messages sent from server to client.
