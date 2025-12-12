@@ -200,20 +200,22 @@ pub enum TimerVoteState {
         voters: Vec<String>,
         /// Total votes needed to pass
         votes_needed: u32,
-        /// Seconds until vote expires
-        seconds_remaining: u32,
+        /// When the vote expires
+        expires_at: chrono::DateTime<chrono::Utc>,
     },
 
     /// Timer is actively counting down
     TimerActive {
-        /// Seconds remaining on timer
-        seconds_remaining: u32,
+        /// When the timer expires
+        expires_at: chrono::DateTime<chrono::Utc>,
+        /// Target player ID (user ID)
+        target_player_id: String,
     },
 
     /// Vote failed, in cooldown before another can start
     Cooldown {
-        /// Seconds remaining in cooldown
-        seconds_remaining: u32,
+        /// When the cooldown expires
+        expires_at: chrono::DateTime<chrono::Utc>,
     },
 
     /// Feature disabled (not enough players)
@@ -435,15 +437,32 @@ mod tests {
         let json = serde_json::to_string(&idle).unwrap();
         assert!(json.contains(r#""status":"idle""#));
 
+        let now = chrono::Utc::now();
         let vote = TimerVoteState::VoteInProgress {
             initiator_id: "123".to_string(),
             voters: vec!["456".to_string()],
             votes_needed: 2,
-            seconds_remaining: 10,
+            expires_at: now,
         };
         let json = serde_json::to_string(&vote).unwrap();
         assert!(json.contains(r#""status":"vote_in_progress""#));
         assert!(json.contains(r#""initiator_id":"123""#));
+        assert!(json.contains(r#""expires_at""#));
+
+        let active = TimerVoteState::TimerActive {
+            expires_at: now,
+            target_player_id: "789".to_string(),
+        };
+        let json = serde_json::to_string(&active).unwrap();
+        assert!(json.contains(r#""status":"timer_active""#));
+        assert!(json.contains(r#""target_player_id":"789""#));
+
+        let cooldown = TimerVoteState::Cooldown {
+            expires_at: now,
+        };
+        let json = serde_json::to_string(&cooldown).unwrap();
+        assert!(json.contains(r#""status":"cooldown""#));
+        assert!(json.contains(r#""expires_at""#));
     }
 
     #[test]
