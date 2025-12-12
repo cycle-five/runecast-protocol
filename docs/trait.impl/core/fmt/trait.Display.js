@@ -1,5 +1,5 @@
 (function() {
-    var implementors = Object.fromEntries([["runecast_protocol",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Display.html\" title=\"trait core::fmt::Display\">Display</a> for <a class=\"enum\" href=\"runecast_protocol/protocol/types/enum.ErrorCode.html\" title=\"enum runecast_protocol::protocol::types::ErrorCode\">ErrorCode</a>"]]]]);
+    var implementors = Object.fromEntries([["runecast_protocol",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.92.0/core/fmt/trait.Display.html\" title=\"trait core::fmt::Display\">Display</a> for <a class=\"enum\" href=\"runecast_protocol/protocol/types/enum.ErrorCode.html\" title=\"enum runecast_protocol::protocol::types::ErrorCode\">ErrorCode</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
