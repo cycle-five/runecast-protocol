@@ -456,6 +456,13 @@ mod tests {
         let json = serde_json::to_string(&active).unwrap();
         assert!(json.contains(r#""status":"timer_active""#));
         assert!(json.contains(r#""target_player_id":"789""#));
+
+        let cooldown = TimerVoteState::Cooldown {
+            expires_at: now,
+        };
+        let json = serde_json::to_string(&cooldown).unwrap();
+        assert!(json.contains(r#""status":"cooldown""#));
+        assert!(json.contains(r#""expires_at""#));
     }
 
     #[test]
