@@ -141,6 +141,11 @@ pub struct GamePlayerInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     pub turn_order: u8,
+    pub score: i32,
+    pub gems: i32,
+    pub is_connected: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<i32>,
 }
 
 /// Spectator information.
@@ -457,9 +462,7 @@ mod tests {
         assert!(json.contains(r#""status":"timer_active""#));
         assert!(json.contains(r#""target_player_id":"789""#));
 
-        let cooldown = TimerVoteState::Cooldown {
-            expires_at: now,
-        };
+        let cooldown = TimerVoteState::Cooldown { expires_at: now };
         let json = serde_json::to_string(&cooldown).unwrap();
         assert!(json.contains(r#""status":"cooldown""#));
         assert!(json.contains(r#""expires_at""#));
