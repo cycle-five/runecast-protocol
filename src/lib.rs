@@ -30,6 +30,7 @@ pub mod protocol;
 
 // Re-export commonly used items at crate root for convenience
 pub use protocol::{
-    ClientMessage, Envelope, ErrorCode, GameSnapshot, GameState, Grid, GridCell, LobbySnapshot,
-    MaybeEnveloped, Multiplier, PlayerInfo, Position, ServerMessage, TimerVoteState, AdminGameInfo,
+    types::{GamePlayerInfo, Grid, GridCell, LobbyPlayerInfo, Multiplier, PlayerInfo, Position},
+    AdminGameInfo, ClientMessage, Envelope, ErrorCode, GameSnapshot, GameState, LobbySnapshot,
+    MaybeEnveloped, ServerMessage, TimerVoteState,
 };
