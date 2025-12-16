@@ -211,7 +211,11 @@ pub enum ServerMessage {
     TurnPassed { player_id: String, game_id: String },
 
     /// Round number changed.
-    RoundChanged { game_id: String, round: u8, max_rounds: u8 },
+    RoundChanged {
+        game_id: String,
+        round: u8,
+        max_rounds: u8,
+    },
 
     /// Board was shuffled.
     BoardShuffled {
@@ -253,13 +257,23 @@ pub enum ServerMessage {
     },
 
     /// A new spectator joined (broadcast to others).
-    SpectatorAdded { spectator: SpectatorInfo, game_id: String },
+    SpectatorAdded {
+        spectator: SpectatorInfo,
+        game_id: String,
+    },
 
     /// A spectator left.
-    SpectatorRemoved { spectator_id: String, game_id: String },
+    SpectatorRemoved {
+        spectator_id: String,
+        game_id: String,
+    },
 
     /// Spectator joined as player.
-    SpectatorBecamePlayer { player_id: String, username: String, game_id: String },
+    SpectatorBecamePlayer {
+        player_id: String,
+        username: String,
+        game_id: String,
+    },
 
     // ========================================================================
     // Live Update Messages
@@ -275,7 +289,10 @@ pub enum ServerMessage {
     // Timer Vote Messages
     // ========================================================================
     /// Timer vote state changed.
-    TimerVoteUpdate { state: TimerVoteState, game_id: String },
+    TimerVoteUpdate {
+        state: TimerVoteState,
+        game_id: String,
+    },
 
     /// Turn timer started (vote passed).
     TurnTimerStarted {
@@ -291,10 +308,18 @@ pub enum ServerMessage {
     // Queue Messages (Legacy)
     // ========================================================================
     /// Player joined the game queue.
-    QueueJoined { position: i32, total_in_queue: i32, game_id: String },
+    QueueJoined {
+        position: i32,
+        total_in_queue: i32,
+        game_id: String,
+    },
 
     /// Queue position updated.
-    QueueUpdate { position: i32, total_in_queue: i32, game_id: String },
+    QueueUpdate {
+        position: i32,
+        total_in_queue: i32,
+        game_id: String,
+    },
 
     /// Left the queue.
     QueueLeft,
@@ -446,9 +471,16 @@ impl ServerMessage {
                 | Self::HeartbeatAck { .. }
                 | Self::SelectionUpdate { .. }
                 | Self::TimerVoteUpdate {
-                    state: TimerVoteState::Idle, ..
+                    state: TimerVoteState::Idle,
+                    ..
                 }
         )
+    }
+}
+
+impl Into<serde_json::Value> for ServerMessage {
+    fn into(self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
     }
 }
 
@@ -502,6 +534,24 @@ pub struct GameSnapshot {
 mod tests {
     use super::*;
     use crate::protocol::types;
+
+    #[test]
+    fn test_server_message_into_json() {
+        let msg = ServerMessage::BoardShuffled {
+            player_id: "1234567890".to_string(),
+            game_id: "1234567890".to_string(),
+            new_grid: Grid::new(),
+            gems_spent: 0,
+            total_gems: 0,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"board_shuffled""#));
+        assert!(json.contains(r#""player_id":"1234567890""#));
+        assert!(json.contains(r#""game_id":"1234567890""#));
+        assert!(json.contains(r#""new_grid":[]"#));
+        assert!(json.contains(r#""gems_spent":0"#));
+        assert!(json.contains(r#""total_gems":0"#));
+    }
 
     #[test]
     fn test_heartbeat_ack_serialization() {
