@@ -219,6 +219,8 @@ pub enum ServerMessage {
         game_id: String,
         new_grid: Grid,
         gems_spent: i32,
+        /// Player's remaining gems after shuffle
+        total_gems: i32,
     },
 
     /// A tile was swapped.
@@ -230,6 +232,8 @@ pub enum ServerMessage {
         old_letter: char,
         new_letter: char,
         gems_spent: i32,
+        /// Player's remaining gems after swap
+        total_gems: i32,
     },
 
     /// Player entered swap mode (for animation).
