@@ -313,7 +313,7 @@ pub enum GameChange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminGameInfo {
     pub game_id: String,
-    pub state: String,
+    pub state: GameState,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub players: Vec<String>,
 }
