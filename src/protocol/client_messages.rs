@@ -308,7 +308,10 @@ impl ClientMessage {
     pub fn requires_turn(&self) -> bool {
         matches!(
             self,
-            Self::SubmitWord { .. } | Self::PassTurn { .. } | Self::ShuffleBoard { .. } | Self::SwapTile { .. }
+            Self::SubmitWord { .. }
+                | Self::PassTurn { .. }
+                | Self::ShuffleBoard { .. }
+                | Self::SwapTile { .. }
         )
     }
 }
@@ -392,8 +395,14 @@ mod tests {
     #[test]
     fn test_requires_turn() {
         assert!(!ClientMessage::Heartbeat.requires_turn());
-        assert!(!ClientMessage::InitiateTimerVote { game_id: "game_1".to_string() }.requires_turn());
-        assert!(ClientMessage::PassTurn { game_id: "game_1".to_string() }.requires_turn());
+        assert!(!ClientMessage::InitiateTimerVote {
+            game_id: "game_1".to_string()
+        }
+        .requires_turn());
+        assert!(ClientMessage::PassTurn {
+            game_id: "game_1".to_string()
+        }
+        .requires_turn());
         assert!(ClientMessage::SubmitWord {
             game_id: "game_1".to_string(),
             word: "TEST".to_string(),

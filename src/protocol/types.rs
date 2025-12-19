@@ -186,39 +186,25 @@ pub struct LobbyGameInfo {
 // Snapshot Types
 // ============================================================================
 
-/// Snapshot of a player's state within a game.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GamePlayerSnapshot {
-    pub user_id: String,
-    pub username: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avatar_url: Option<String>,
-    pub score: i32,
-    pub gems: i32,
-    pub is_connected: bool,
-}
-
-/// Snapshot of a spectator's state within a game.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GameSpectatorSnapshot {
-    pub user_id: String,
-    pub username: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avatar_url: Option<String>,
-}
-
 /// Complete snapshot of the game state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameSnapshot {
     pub game_id: String,
     pub state: GameState,
     pub grid: Grid,
-    pub players: Vec<GamePlayerSnapshot>,
-    pub spectators: Vec<GameSpectatorSnapshot>,
-    pub current_turn: Option<String>,
-    pub round: i32,
-    pub max_rounds: i32,
+    pub players: Vec<PlayerInfo>,
+    pub spectators: Vec<SpectatorInfo>,
+    pub current_turn: String,
+    pub round: u8,
+    pub max_rounds: u8,
     pub used_words: Vec<String>,
+    pub timer_vote_state: TimerVoteState,
+    /// Your player info (for the receiving client)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub your_player: Option<PlayerInfo>,
+    /// When the turn timer expires (if active)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timer_expiration_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 // ============================================================================
@@ -531,16 +517,17 @@ mod tests {
 
     #[test]
     fn test_game_snapshot_serialization() {
-        let player = GamePlayerSnapshot {
+        let player = PlayerInfo {
             user_id: "p1".to_string(),
             username: "Player1".to_string(),
             avatar_url: None,
             score: 10,
             gems: 5,
+            team: None,
             is_connected: true,
         };
 
-        let spectator = GameSpectatorSnapshot {
+        let spectator = SpectatorInfo {
             user_id: "s1".to_string(),
             username: "Spec1".to_string(),
             avatar_url: Some("http://avatar.url".to_string()),
@@ -557,10 +544,13 @@ mod tests {
             }]],
             players: vec![player],
             spectators: vec![spectator],
-            current_turn: Some("p1".to_string()),
+            current_turn: "p1".to_string(),
             round: 1,
             max_rounds: 3,
             used_words: vec!["WORD".to_string()],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
