@@ -99,9 +99,9 @@ pub struct LobbyPlayerInfo {
     /// Whether the player has marked themselves ready
     #[serde(default)]
     pub is_ready: bool,
-    /// Which game queue the player is currently in (if any)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub current_queue: Option<GameType>,
+    /// The player's status within a game queue, if they are in one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_info: Option<PlayerQueueInfo>,
 }
 
 /// Summary of a game visible from the lobby.
