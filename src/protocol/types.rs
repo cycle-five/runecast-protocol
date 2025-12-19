@@ -183,13 +183,51 @@ pub struct LobbyGameInfo {
 }
 
 // ============================================================================
+// Snapshot Types
+// ============================================================================
+
+/// Snapshot of a player's state within a game.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GamePlayerSnapshot {
+    pub user_id: String,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    pub score: i32,
+    pub gems: i32,
+    pub is_connected: bool,
+}
+
+/// Snapshot of a spectator's state within a game.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameSpectatorSnapshot {
+    pub user_id: String,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+}
+
+/// Complete snapshot of the game state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameSnapshot {
+    pub game_id: String,
+    pub state: GameState,
+    pub grid: Grid,
+    pub players: Vec<GamePlayerSnapshot>,
+    pub spectators: Vec<GameSpectatorSnapshot>,
+    pub current_turn: Option<String>,
+    pub round: i32,
+    pub max_rounds: i32,
+    pub used_words: Vec<String>,
+}
+
+// ============================================================================
 // Timer Vote Types
 // ============================================================================
 
 /// State of the timer vote system.
 ///
 /// The timer vote allows players to collectively vote to start a turn timer
-/// on the current player. This prevents indefinite stalling.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum TimerVoteState {
@@ -489,5 +527,46 @@ mod tests {
             ErrorCode::WordNotInDictionary.message(),
             "Word not found in dictionary"
         );
+    }
+
+    #[test]
+    fn test_game_snapshot_serialization() {
+        let player = GamePlayerSnapshot {
+            user_id: "p1".to_string(),
+            username: "Player1".to_string(),
+            avatar_url: None,
+            score: 10,
+            gems: 5,
+            is_connected: true,
+        };
+
+        let spectator = GameSpectatorSnapshot {
+            user_id: "s1".to_string(),
+            username: "Spec1".to_string(),
+            avatar_url: Some("http://avatar.url".to_string()),
+        };
+
+        let snapshot = GameSnapshot {
+            game_id: "game1".to_string(),
+            state: GameState::InProgress,
+            grid: vec![vec![GridCell {
+                letter: 'A',
+                value: 1,
+                multiplier: None,
+                has_gem: false,
+            }]],
+            players: vec![player],
+            spectators: vec![spectator],
+            current_turn: Some("p1".to_string()),
+            round: 1,
+            max_rounds: 3,
+            used_words: vec!["WORD".to_string()],
+        };
+
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(json.contains(r#""game_id":"game1""#));
+        assert!(json.contains(r#""players":[{"user_id":"p1""#));
+        assert!(json.contains(r#""spectators":[{"user_id":"s1""#));
+        assert!(json.contains(r#""current_turn":"p1""#));
     }
 }
