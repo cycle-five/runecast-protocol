@@ -100,7 +100,7 @@ pub struct LobbyPlayerInfo {
     #[serde(default)]
     pub is_ready: bool,
     /// Which game queue the player is currently in (if any)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub current_queue: Option<GameType>,
 }
 
