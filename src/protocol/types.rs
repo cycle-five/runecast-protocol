@@ -63,6 +63,31 @@ pub enum LobbyType {
     Custom,
 }
 
+/// Game type for queue-based matchmaking within a lobby.
+///
+/// Each lobby can have multiple queues, one per game type.
+/// Players join a queue to find matches for that game type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GameType {
+    /// Free-for-all open game (default)
+    Open,
+    /// 2v2 team game
+    TwoVTwo,
+    /// Adventure/co-op mode
+    Adventure,
+}
+
+impl std::fmt::Display for GameType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameType::Open => write!(f, "open"),
+            GameType::TwoVTwo => write!(f, "two_v_two"),
+            GameType::Adventure => write!(f, "adventure"),
+        }
+    }
+}
+
 /// Player information in the lobby (pre-game).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyPlayerInfo {
@@ -74,6 +99,9 @@ pub struct LobbyPlayerInfo {
     /// Whether the player has marked themselves ready
     #[serde(default)]
     pub is_ready: bool,
+    /// Which game queue the player is currently in (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_queue: Option<GameType>,
 }
 
 /// Summary of a game visible from the lobby.
