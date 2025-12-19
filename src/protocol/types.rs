@@ -528,6 +528,7 @@ mod tests {
                 username: "TestUser".to_string(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             },
         };
         let json = serde_json::to_string(&change).unwrap();
