@@ -577,6 +577,7 @@ mod tests {
                 username: "TestPlayer".to_string(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             },
         };
         let json = serde_json::to_string(&msg).unwrap();
@@ -601,6 +602,7 @@ mod tests {
                 username: "x".into(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             }
         }
         .should_store_for_replay());
