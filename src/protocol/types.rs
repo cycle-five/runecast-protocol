@@ -242,6 +242,7 @@ pub struct GameSnapshot {
 /// State of the timer vote system.
 ///
 /// The timer vote allows players to collectively vote to start a turn timer
+/// on the current player. This prevents indefinite stalling.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum TimerVoteState {
