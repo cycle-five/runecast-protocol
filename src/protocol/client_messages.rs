@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{GameMode, Position};
+use super::types::{GameMode, GameType, Position};
 
 /// Messages sent from client to server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +82,28 @@ pub enum ClientMessage {
     ///
     /// Ready state indicates willingness to start a game.
     ToggleReady,
+
+    // ========================================================================
+    // Queue Messages (for matchmaking within a lobby)
+    // ========================================================================
+    /// Join a game type queue within the lobby.
+    ///
+    /// Players must join a queue to be matched for that game type.
+    /// Only one queue can be joined at a time.
+    JoinQueue {
+        /// The game type queue to join
+        game_type: GameType,
+    },
+
+    /// Leave the current game queue.
+    ///
+    /// Returns the player to the main lobby view.
+    LeaveQueue,
+
+    /// Toggle ready state within the current queue.
+    ///
+    /// Similar to ToggleReady but operates within the queue context.
+    ToggleQueueReady,
 
     // ========================================================================
     // Game Lifecycle Messages
@@ -243,6 +265,9 @@ impl ClientMessage {
             Self::JoinCustomLobby { .. } => "join_custom_lobby",
             Self::LeaveLobby => "leave_lobby",
             Self::ToggleReady => "toggle_ready",
+            Self::JoinQueue { .. } => "join_queue",
+            Self::LeaveQueue => "leave_queue",
+            Self::ToggleQueueReady => "toggle_queue_ready",
             Self::CreateGame { .. } => "create_game",
             Self::StartGame => "start_game",
             Self::SubmitWord { .. } => "submit_word",
@@ -270,6 +295,9 @@ impl ClientMessage {
             self,
             Self::LeaveLobby
                 | Self::ToggleReady
+                | Self::JoinQueue { .. }
+                | Self::LeaveQueue
+                | Self::ToggleQueueReady
                 | Self::StartGame
                 | Self::SubmitWord { .. }
                 | Self::PassTurn { .. }
@@ -308,7 +336,10 @@ impl ClientMessage {
     pub fn requires_turn(&self) -> bool {
         matches!(
             self,
-            Self::SubmitWord { .. } | Self::PassTurn { .. } | Self::ShuffleBoard { .. } | Self::SwapTile { .. }
+            Self::SubmitWord { .. }
+                | Self::PassTurn { .. }
+                | Self::ShuffleBoard { .. }
+                | Self::SwapTile { .. }
         )
     }
 }
@@ -392,8 +423,14 @@ mod tests {
     #[test]
     fn test_requires_turn() {
         assert!(!ClientMessage::Heartbeat.requires_turn());
-        assert!(!ClientMessage::InitiateTimerVote { game_id: "game_1".to_string() }.requires_turn());
-        assert!(ClientMessage::PassTurn { game_id: "game_1".to_string() }.requires_turn());
+        assert!(!ClientMessage::InitiateTimerVote {
+            game_id: "game_1".to_string()
+        }
+        .requires_turn());
+        assert!(ClientMessage::PassTurn {
+            game_id: "game_1".to_string()
+        }
+        .requires_turn());
         assert!(ClientMessage::SubmitWord {
             game_id: "game_1".to_string(),
             word: "TEST".to_string(),

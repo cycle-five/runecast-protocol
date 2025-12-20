@@ -64,7 +64,7 @@ pub mod types;
 // Re-export main types for convenient access
 pub use client_messages::ClientMessage;
 pub use envelope::{Envelope, MaybeEnveloped};
-pub use server_messages::{GameSnapshot, LobbySnapshot, ServerMessage};
+pub use server_messages::{LobbySnapshot, ServerMessage};
 pub use types::*;
 
 // ============================================================================
@@ -177,7 +177,7 @@ pub mod compat {
             )
             .unwrap_or_default(),
             your_player: None,
-            turn_time_remaining: None,
+            timer_expiration_time: None,
         })
     }
 

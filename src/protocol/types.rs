@@ -63,6 +63,31 @@ pub enum LobbyType {
     Custom,
 }
 
+/// Game type for queue-based matchmaking within a lobby.
+///
+/// Each lobby can have multiple queues, one per game type.
+/// Players join a queue to find matches for that game type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GameType {
+    /// Free-for-all open game (default)
+    Open,
+    /// 2v2 team game
+    TwoVTwo,
+    /// Adventure/co-op mode
+    Adventure,
+}
+
+impl std::fmt::Display for GameType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameType::Open => write!(f, "open"),
+            GameType::TwoVTwo => write!(f, "two_v_two"),
+            GameType::Adventure => write!(f, "adventure"),
+        }
+    }
+}
+
 /// Player information in the lobby (pre-game).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyPlayerInfo {
@@ -74,6 +99,9 @@ pub struct LobbyPlayerInfo {
     /// Whether the player has marked themselves ready
     #[serde(default)]
     pub is_ready: bool,
+    /// The player's status within a game queue, if they are in one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_queue: Option<GameType>,
 }
 
 /// Summary of a game visible from the lobby.
@@ -180,6 +208,31 @@ pub struct LobbyGameInfo {
     pub current_round: i32,
     pub max_rounds: i32,
     pub players: Vec<LobbyGamePlayerInfo>,
+}
+
+// ============================================================================
+// Snapshot Types
+// ============================================================================
+
+/// Complete snapshot of the game state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameSnapshot {
+    pub game_id: String,
+    pub state: GameState,
+    pub grid: Grid,
+    pub players: Vec<PlayerInfo>,
+    pub spectators: Vec<SpectatorInfo>,
+    pub current_turn: String,
+    pub round: u8,
+    pub max_rounds: u8,
+    pub used_words: Vec<String>,
+    pub timer_vote_state: TimerVoteState,
+    /// Your player info (for the receiving client)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub your_player: Option<PlayerInfo>,
+    /// When the turn timer expires (if active)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timer_expiration_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 // ============================================================================
@@ -476,6 +529,7 @@ mod tests {
                 username: "TestUser".to_string(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             },
         };
         let json = serde_json::to_string(&change).unwrap();
@@ -489,5 +543,50 @@ mod tests {
             ErrorCode::WordNotInDictionary.message(),
             "Word not found in dictionary"
         );
+    }
+
+    #[test]
+    fn test_game_snapshot_serialization() {
+        let player = PlayerInfo {
+            user_id: "p1".to_string(),
+            username: "Player1".to_string(),
+            avatar_url: None,
+            score: 10,
+            gems: 5,
+            team: None,
+            is_connected: true,
+        };
+
+        let spectator = SpectatorInfo {
+            user_id: "s1".to_string(),
+            username: "Spec1".to_string(),
+            avatar_url: Some("http://avatar.url".to_string()),
+        };
+
+        let snapshot = GameSnapshot {
+            game_id: "game1".to_string(),
+            state: GameState::InProgress,
+            grid: vec![vec![GridCell {
+                letter: 'A',
+                value: 1,
+                multiplier: None,
+                has_gem: false,
+            }]],
+            players: vec![player],
+            spectators: vec![spectator],
+            current_turn: "p1".to_string(),
+            round: 1,
+            max_rounds: 3,
+            used_words: vec!["WORD".to_string()],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+        };
+
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(json.contains(r#""game_id":"game1""#));
+        assert!(json.contains(r#""players":[{"user_id":"p1""#));
+        assert!(json.contains(r#""spectators":[{"user_id":"s1""#));
+        assert!(json.contains(r#""current_turn":"p1""#));
     }
 }

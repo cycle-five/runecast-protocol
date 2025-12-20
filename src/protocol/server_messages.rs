@@ -14,7 +14,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::types::{
-    AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameState, Grid, LobbyChange,
+    AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot, Grid, LobbyChange,
     LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, ScoreInfo, SpectatorInfo,
     TimerVoteState,
 };
@@ -509,27 +509,6 @@ fn default_max_players() -> u8 {
     6
 }
 
-/// Complete game state snapshot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GameSnapshot {
-    pub game_id: String,
-    pub state: GameState,
-    pub grid: Grid,
-    pub players: Vec<PlayerInfo>,
-    pub spectators: Vec<SpectatorInfo>,
-    pub current_turn: String,
-    pub round: u8,
-    pub max_rounds: u8,
-    pub used_words: Vec<String>,
-    pub timer_vote_state: TimerVoteState,
-    /// Your player info (for the receiving client)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub your_player: Option<PlayerInfo>,
-    /// Time remaining in current turn (if timer active)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub turn_time_remaining: Option<u32>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,6 +577,7 @@ mod tests {
                 username: "TestPlayer".to_string(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             },
         };
         let json = serde_json::to_string(&msg).unwrap();
@@ -622,6 +602,7 @@ mod tests {
                 username: "x".into(),
                 avatar_url: None,
                 is_ready: false,
+                current_queue: None,
             }
         }
         .should_store_for_replay());
