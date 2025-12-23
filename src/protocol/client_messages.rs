@@ -176,14 +176,13 @@ pub enum ClientMessage {
     /// Join a game as a spectator.
     ///
     /// Spectators can view the game but cannot interact with it.
-    #[serde(rename = "join_game")]
     SpectateGame { game_id: String },
 
-    /// Join an active game as a player (from spectator mode).
+    /// Join an active game.
     ///
     /// The player is added at the end of the turn queue.
     /// Previous rounds count as 0 points.
-    JoinGameAsPlayer { game_id: String },
+    JoinGame { game_id: String },
 
     /// Leave spectator mode and return to lobby view.
     LeaveSpectator { game_id: String },
@@ -276,8 +275,8 @@ impl ClientMessage {
             Self::EnterSwapMode { .. } => "enter_swap_mode",
             Self::ExitSwapMode { .. } => "exit_swap_mode",
             Self::SwapTile { .. } => "swap_tile",
-            Self::SpectateGame { .. } => "join_game",
-            Self::JoinGameAsPlayer { .. } => "join_game_as_player",
+            Self::JoinGame { .. } => "join_game",
+            Self::SpectateGame { .. } => "spectate_game",
             Self::LeaveSpectator { .. } => "leave_spectator",
             Self::LeaveGame { .. } => "leave_game",
             Self::SelectionUpdate { .. } => "selection_update",
@@ -306,7 +305,7 @@ impl ClientMessage {
                 | Self::ExitSwapMode { .. }
                 | Self::SwapTile { .. }
                 | Self::SpectateGame { .. }
-                | Self::JoinGameAsPlayer { .. }
+                | Self::JoinGame { .. }
                 | Self::LeaveSpectator { .. }
                 | Self::SelectionUpdate { .. }
                 | Self::InitiateTimerVote { .. }
