@@ -578,10 +578,9 @@ mod tests {
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
-        println!("JSON: {}", json);
-        assert!(json.contains(r#"game_id":"game1"#));
+        assert!(json.contains(r#""game_id":"game1""#));
         assert!(json.contains(r#""players":[{"user_id":1"#));
-        assert!(json.contains(r#"spectators":[{"user_id":2"#));
-        assert!(json.contains(r#"current_turn":1"#));
+        assert!(json.contains(r#""spectators":[{"user_id":2"#));
+        assert!(json.contains(r#""current_turn":1"#));
     }
 }
