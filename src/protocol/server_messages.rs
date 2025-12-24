@@ -22,6 +22,7 @@ use super::types::{
 };
 
 /// Messages sent from server to client.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
@@ -46,6 +47,7 @@ pub enum ServerMessage {
         /// Unique session ID for this connection
         session_id: String,
         /// The authenticated player's user ID
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         /// Full lobby state (if in a lobby)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -163,26 +165,36 @@ pub enum ServerMessage {
 
     /// A player left the lobby.
     PlayerLeft {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 
     /// A player reconnected after disconnection.
-    PlayerReconnected { player_id: i64 },
+    PlayerReconnected {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+    },
 
     /// A player disconnected (may reconnect).
     PlayerDisconnected {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         /// Grace period in seconds before they're removed
         grace_period_seconds: u32,
     },
 
     /// A player's ready state changed.
-    PlayerReadyChanged { player_id: i64, is_ready: bool },
+    PlayerReadyChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        is_ready: bool,
+    },
 
     /// A word was successfully scored.
     WordScored {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
         word: String,
@@ -201,6 +213,7 @@ pub enum ServerMessage {
 
     /// Turn changed to another player.
     TurnChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
         round: u8,
@@ -210,7 +223,11 @@ pub enum ServerMessage {
     },
 
     /// A player passed their turn.
-    TurnPassed { player_id: i64, game_id: String },
+    TurnPassed {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        game_id: String,
+    },
 
     /// Round number changed.
     RoundChanged {
@@ -221,6 +238,7 @@ pub enum ServerMessage {
 
     /// Board was shuffled.
     BoardShuffled {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
         new_grid: Grid,
@@ -231,6 +249,7 @@ pub enum ServerMessage {
 
     /// A tile was swapped.
     TileSwapped {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
         row: usize,
@@ -243,10 +262,18 @@ pub enum ServerMessage {
     },
 
     /// Player entered swap mode (for animation).
-    SwapModeEntered { player_id: i64, game_id: String },
+    SwapModeEntered {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        game_id: String,
+    },
 
     /// Player exited swap mode.
-    SwapModeExited { player_id: i64, game_id: String },
+    SwapModeExited {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        game_id: String,
+    },
 
     // ========================================================================
     // Spectator Messages
@@ -265,10 +292,15 @@ pub enum ServerMessage {
     },
 
     /// A spectator left.
-    SpectatorRemoved { spectator_id: i64, game_id: String },
+    SpectatorRemoved {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        spectator_id: i64,
+        game_id: String,
+    },
 
     /// Spectator joined as player.
     SpectatorBecamePlayer {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         username: String,
         game_id: String,
@@ -279,6 +311,7 @@ pub enum ServerMessage {
     // ========================================================================
     /// Another player's tile selection (for live preview).
     SelectionUpdate {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
         positions: Vec<super::types::Position>,
@@ -295,19 +328,25 @@ pub enum ServerMessage {
 
     /// Turn timer started (vote passed).
     TurnTimerStarted {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         target_player_id: i64,
         game_id: String,
         seconds: u32,
     },
 
     /// Turn timer expired - player auto-passed.
-    TurnTimerExpired { player_id: i64, game_id: String },
+    TurnTimerExpired {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        game_id: String,
+    },
 
     // ========================================================================
     // Queue
     // ========================================================================
     //
     PlayerQueueChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         old_queue: Option<GameType>,
         new_queue: Option<GameType>,
@@ -549,7 +588,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"board_shuffled""#));
-        assert!(json.contains(r#""player_id":1234567890"#));
+        assert!(json.contains(r#""player_id":"1234567890""#));
         assert!(json.contains(r#""game_id":"1234567890""#));
         assert!(json.contains(r#""new_grid":[]"#));
         assert!(json.contains(r#""gems_spent":0"#));
@@ -606,7 +645,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"player_joined""#));
-        assert!(json.contains(r#""user_id":123"#));
+        assert!(json.contains(r#""user_id":"123""#));
     }
 
     #[test]
@@ -656,7 +695,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"selection_update""#));
-        assert!(json.contains(r#""player_id":11"#));
+        assert!(json.contains(r#""player_id":"11""#));
         assert!(json.contains(r#""game_id":"game1""#));
     }
 
@@ -669,7 +708,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"player_queue_changed""#));
-        assert!(json.contains(r#""player_id":123"#));
+        assert!(json.contains(r#""player_id":"123""#));
         assert!(json.contains(r#""old_queue":"open""#));
         assert!(json.contains(r#""new_queue":"adventure""#));
     }
