@@ -89,10 +89,12 @@ impl std::fmt::Display for GameType {
 }
 
 /// Player information in the lobby (pre-game).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyPlayerInfo {
     /// User ID (string to preserve JS number precision)
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -138,10 +140,12 @@ pub enum GameState {
 // ============================================================================
 
 /// Player information during a game.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerInfo {
     /// User ID (string to preserve JS number precision)
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -162,9 +166,11 @@ fn default_true() -> bool {
 }
 
 /// Player info specifically for GameStarted message (includes turn order).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePlayerInfo {
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -177,26 +183,32 @@ pub struct GamePlayerInfo {
 }
 
 /// Spectator information.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpectatorInfo {
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
 }
 
 /// Score information for results/leaderboards.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoreInfo {
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     pub score: i32,
 }
 
 /// Player info in lobby game list (simplified).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyGamePlayerInfo {
-    pub user_id: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub user_id: i64,
     pub username: String,
     pub score: i32,
 }
@@ -222,7 +234,7 @@ pub struct GameSnapshot {
     pub grid: Grid,
     pub players: Vec<PlayerInfo>,
     pub spectators: Vec<SpectatorInfo>,
-    pub current_turn: String,
+    pub current_turn: i64,
     pub round: u8,
     pub max_rounds: u8,
     pub used_words: Vec<String>,
@@ -243,6 +255,7 @@ pub struct GameSnapshot {
 ///
 /// The timer vote allows players to collectively vote to start a turn timer
 /// on the current player. This prevents indefinite stalling.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum TimerVoteState {
@@ -253,9 +266,11 @@ pub enum TimerVoteState {
     /// Vote is in progress
     VoteInProgress {
         /// User ID of who initiated the vote
-        initiator_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        initiator_id: i64,
         /// User IDs of players who have voted yes
-        voters: Vec<String>,
+        #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+        voters: Vec<i64>,
         /// Total votes needed to pass
         votes_needed: u32,
         /// When the vote expires
@@ -267,7 +282,8 @@ pub enum TimerVoteState {
         /// When the timer expires
         expires_at: chrono::DateTime<chrono::Utc>,
         /// Target player ID (user ID)
-        target_player_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        target_player_id: i64,
     },
 
     /// Vote failed, in cooldown before another can start
@@ -285,6 +301,7 @@ pub enum TimerVoteState {
 // ============================================================================
 
 /// Changes to lobby state (for delta updates instead of full snapshots).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "change_type", rename_all = "snake_case")]
 pub enum LobbyChange {
@@ -293,17 +310,23 @@ pub enum LobbyChange {
 
     /// A player left the lobby
     PlayerLeft {
-        player_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 
     /// A player's ready state changed
-    PlayerReadyChanged { player_id: String, is_ready: bool },
+    PlayerReadyChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        is_ready: bool,
+    },
 
     /// A player's connection state changed
     PlayerConnectionChanged {
-        player_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
         is_connected: bool,
     },
 
@@ -318,6 +341,7 @@ pub enum LobbyChange {
 }
 
 /// Changes to game state (for delta updates).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "change_type", rename_all = "snake_case")]
 pub enum GameChange {
@@ -331,13 +355,17 @@ pub enum GameChange {
 
     /// A player's score changed
     ScoreUpdated {
-        player_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
         score: i32,
         gems: i32,
     },
 
     /// Turn changed to another player
-    TurnChanged { player_id: String },
+    TurnChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+    },
 
     /// Round number changed
     RoundChanged { round: u8 },
@@ -349,11 +377,15 @@ pub enum GameChange {
     SpectatorJoined { spectator: SpectatorInfo },
 
     /// A spectator left the game
-    SpectatorLeft { spectator_id: String },
+    SpectatorLeft {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        spectator_id: i64,
+    },
 
     /// A player's connection state changed
     PlayerConnectionChanged {
-        player_id: String,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
         is_connected: bool,
     },
 }
@@ -363,12 +395,14 @@ pub enum GameChange {
 // ============================================================================
 
 /// Admin game info (for admin panel).
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminGameInfo {
     pub game_id: String,
     pub state: GameState,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    pub players: Vec<String>,
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub players: Vec<i64>,
 }
 
 // ============================================================================
@@ -497,8 +531,8 @@ mod tests {
 
         let now = chrono::Utc::now();
         let vote = TimerVoteState::VoteInProgress {
-            initiator_id: "123".to_string(),
-            voters: vec!["456".to_string()],
+            initiator_id: 123,
+            voters: vec![456],
             votes_needed: 2,
             expires_at: now,
         };
@@ -509,7 +543,7 @@ mod tests {
 
         let active = TimerVoteState::TimerActive {
             expires_at: now,
-            target_player_id: "789".to_string(),
+            target_player_id: 789,
         };
         let json = serde_json::to_string(&active).unwrap();
         assert!(json.contains(r#""status":"timer_active""#));
@@ -525,7 +559,7 @@ mod tests {
     fn test_lobby_change_serialization() {
         let change = LobbyChange::PlayerJoined {
             player: LobbyPlayerInfo {
-                user_id: "123".to_string(),
+                user_id: 123,
                 username: "TestUser".to_string(),
                 avatar_url: None,
                 is_ready: false,
@@ -548,7 +582,7 @@ mod tests {
     #[test]
     fn test_game_snapshot_serialization() {
         let player = PlayerInfo {
-            user_id: "p1".to_string(),
+            user_id: 1,
             username: "Player1".to_string(),
             avatar_url: None,
             score: 10,
@@ -558,7 +592,7 @@ mod tests {
         };
 
         let spectator = SpectatorInfo {
-            user_id: "s1".to_string(),
+            user_id: 2,
             username: "Spec1".to_string(),
             avatar_url: Some("http://avatar.url".to_string()),
         };
@@ -574,7 +608,7 @@ mod tests {
             }]],
             players: vec![player],
             spectators: vec![spectator],
-            current_turn: "p1".to_string(),
+            current_turn: 1,
             round: 1,
             max_rounds: 3,
             used_words: vec!["WORD".to_string()],
@@ -585,8 +619,8 @@ mod tests {
 
         let json = serde_json::to_string(&snapshot).unwrap();
         assert!(json.contains(r#""game_id":"game1""#));
-        assert!(json.contains(r#""players":[{"user_id":"p1""#));
-        assert!(json.contains(r#""spectators":[{"user_id":"s1""#));
-        assert!(json.contains(r#""current_turn":"p1""#));
+        assert!(json.contains(r#""players":[{"user_id":"1""#));
+        assert!(json.contains(r#""spectators":[{"user_id":"2""#));
+        assert!(json.contains(r#""current_turn":1"#));
     }
 }
