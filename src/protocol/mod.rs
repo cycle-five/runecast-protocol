@@ -164,7 +164,7 @@ pub mod compat {
             players: serde_json::from_value(value.get("players")?.clone()).ok()?,
             spectators: serde_json::from_value(value.get("spectators")?.clone())
                 .unwrap_or_default(),
-            current_turn: value.get("current_turn")?.as_str()?.to_string(),
+            current_turn: value.get("current_turn")?.as_str()?.parse().ok()?,
             round: value.get("round")?.as_i64()? as u8,
             max_rounds: value.get("max_rounds")?.as_i64()? as u8,
             used_words: serde_json::from_value(value.get("used_words")?.clone())
@@ -199,7 +199,7 @@ pub mod compat {
             state: state_str.to_string(),
             grid: snapshot.grid.clone(),
             players: snapshot.players.clone(),
-            current_turn: snapshot.current_turn.clone(),
+            current_turn: snapshot.current_turn,
             round: snapshot.round as i32,
             max_rounds: snapshot.max_rounds as i32,
             used_words: snapshot.used_words.clone(),

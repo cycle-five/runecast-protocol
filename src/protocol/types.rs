@@ -92,7 +92,7 @@ impl std::fmt::Display for GameType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyPlayerInfo {
     /// User ID (string to preserve JS number precision)
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -141,7 +141,7 @@ pub enum GameState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerInfo {
     /// User ID (string to preserve JS number precision)
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -164,7 +164,7 @@ fn default_true() -> bool {
 /// Player info specifically for GameStarted message (includes turn order).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePlayerInfo {
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -179,7 +179,7 @@ pub struct GamePlayerInfo {
 /// Spectator information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpectatorInfo {
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -188,7 +188,7 @@ pub struct SpectatorInfo {
 /// Score information for results/leaderboards.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoreInfo {
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     pub score: i32,
 }
@@ -196,7 +196,7 @@ pub struct ScoreInfo {
 /// Player info in lobby game list (simplified).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyGamePlayerInfo {
-    pub user_id: String,
+    pub user_id: i64,
     pub username: String,
     pub score: i32,
 }
@@ -222,7 +222,7 @@ pub struct GameSnapshot {
     pub grid: Grid,
     pub players: Vec<PlayerInfo>,
     pub spectators: Vec<SpectatorInfo>,
-    pub current_turn: String,
+    pub current_turn: i64,
     pub round: u8,
     pub max_rounds: u8,
     pub used_words: Vec<String>,
@@ -253,9 +253,9 @@ pub enum TimerVoteState {
     /// Vote is in progress
     VoteInProgress {
         /// User ID of who initiated the vote
-        initiator_id: String,
+        initiator_id: i64,
         /// User IDs of players who have voted yes
-        voters: Vec<String>,
+        voters: Vec<i64>,
         /// Total votes needed to pass
         votes_needed: u32,
         /// When the vote expires
@@ -267,7 +267,7 @@ pub enum TimerVoteState {
         /// When the timer expires
         expires_at: chrono::DateTime<chrono::Utc>,
         /// Target player ID (user ID)
-        target_player_id: String,
+        target_player_id: i64,
     },
 
     /// Vote failed, in cooldown before another can start
@@ -293,19 +293,16 @@ pub enum LobbyChange {
 
     /// A player left the lobby
     PlayerLeft {
-        player_id: String,
+        player_id: i64,
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 
     /// A player's ready state changed
-    PlayerReadyChanged { player_id: String, is_ready: bool },
+    PlayerReadyChanged { player_id: i64, is_ready: bool },
 
     /// A player's connection state changed
-    PlayerConnectionChanged {
-        player_id: String,
-        is_connected: bool,
-    },
+    PlayerConnectionChanged { player_id: i64, is_connected: bool },
 
     /// A game's state changed
     GameStateChanged { game_id: String, state: GameState },
@@ -331,13 +328,13 @@ pub enum GameChange {
 
     /// A player's score changed
     ScoreUpdated {
-        player_id: String,
+        player_id: i64,
         score: i32,
         gems: i32,
     },
 
     /// Turn changed to another player
-    TurnChanged { player_id: String },
+    TurnChanged { player_id: i64 },
 
     /// Round number changed
     RoundChanged { round: u8 },
@@ -349,13 +346,10 @@ pub enum GameChange {
     SpectatorJoined { spectator: SpectatorInfo },
 
     /// A spectator left the game
-    SpectatorLeft { spectator_id: String },
+    SpectatorLeft { spectator_id: i64 },
 
     /// A player's connection state changed
-    PlayerConnectionChanged {
-        player_id: String,
-        is_connected: bool,
-    },
+    PlayerConnectionChanged { player_id: i64, is_connected: bool },
 }
 
 // ============================================================================
@@ -368,7 +362,7 @@ pub struct AdminGameInfo {
     pub game_id: String,
     pub state: GameState,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    pub players: Vec<String>,
+    pub players: Vec<i64>,
 }
 
 // ============================================================================
@@ -497,23 +491,23 @@ mod tests {
 
         let now = chrono::Utc::now();
         let vote = TimerVoteState::VoteInProgress {
-            initiator_id: "123".to_string(),
-            voters: vec!["456".to_string()],
+            initiator_id: 123,
+            voters: vec![456],
             votes_needed: 2,
             expires_at: now,
         };
         let json = serde_json::to_string(&vote).unwrap();
         assert!(json.contains(r#""status":"vote_in_progress""#));
-        assert!(json.contains(r#""initiator_id":"123""#));
+        assert!(json.contains(r#""initiator_id":123"#));
         assert!(json.contains(r#""expires_at""#));
 
         let active = TimerVoteState::TimerActive {
             expires_at: now,
-            target_player_id: "789".to_string(),
+            target_player_id: 789,
         };
         let json = serde_json::to_string(&active).unwrap();
         assert!(json.contains(r#""status":"timer_active""#));
-        assert!(json.contains(r#""target_player_id":"789""#));
+        assert!(json.contains(r#""target_player_id":789"#));
 
         let cooldown = TimerVoteState::Cooldown { expires_at: now };
         let json = serde_json::to_string(&cooldown).unwrap();
@@ -525,7 +519,7 @@ mod tests {
     fn test_lobby_change_serialization() {
         let change = LobbyChange::PlayerJoined {
             player: LobbyPlayerInfo {
-                user_id: "123".to_string(),
+                user_id: 123,
                 username: "TestUser".to_string(),
                 avatar_url: None,
                 is_ready: false,
@@ -548,7 +542,7 @@ mod tests {
     #[test]
     fn test_game_snapshot_serialization() {
         let player = PlayerInfo {
-            user_id: "p1".to_string(),
+            user_id: 1,
             username: "Player1".to_string(),
             avatar_url: None,
             score: 10,
@@ -558,7 +552,7 @@ mod tests {
         };
 
         let spectator = SpectatorInfo {
-            user_id: "s1".to_string(),
+            user_id: 2,
             username: "Spec1".to_string(),
             avatar_url: Some("http://avatar.url".to_string()),
         };
@@ -574,7 +568,7 @@ mod tests {
             }]],
             players: vec![player],
             spectators: vec![spectator],
-            current_turn: "p1".to_string(),
+            current_turn: 1,
             round: 1,
             max_rounds: 3,
             used_words: vec!["WORD".to_string()],
@@ -584,9 +578,10 @@ mod tests {
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
-        assert!(json.contains(r#""game_id":"game1""#));
-        assert!(json.contains(r#""players":[{"user_id":"p1""#));
-        assert!(json.contains(r#""spectators":[{"user_id":"s1""#));
-        assert!(json.contains(r#""current_turn":"p1""#));
+        println!("JSON: {}", json);
+        assert!(json.contains(r#"game_id":"game1"#));
+        assert!(json.contains(r#""players":[{"user_id":1"#));
+        assert!(json.contains(r#"spectators":[{"user_id":2"#));
+        assert!(json.contains(r#"current_turn":1"#));
     }
 }

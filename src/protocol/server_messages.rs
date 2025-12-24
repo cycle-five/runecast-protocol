@@ -46,7 +46,7 @@ pub enum ServerMessage {
         /// Unique session ID for this connection
         session_id: String,
         /// The authenticated player's user ID
-        player_id: String,
+        player_id: i64,
         /// Full lobby state (if in a lobby)
         #[serde(skip_serializing_if = "Option::is_none")]
         lobby: Option<LobbySnapshot>,
@@ -121,7 +121,7 @@ pub enum ServerMessage {
         /// Your turn order (0-indexed)
         your_turn_order: u8,
         /// Who goes first
-        current_turn: String,
+        current_turn: i64,
         round: u8,
         max_rounds: u8,
         /// Turn time limit in seconds (if configured)
@@ -146,7 +146,7 @@ pub enum ServerMessage {
         /// Final scores, sorted by rank
         final_scores: Vec<ScoreInfo>,
         /// Winner's user ID
-        winner_id: String,
+        winner_id: i64,
         /// Whether it was a draw
         #[serde(default)]
         is_draw: bool,
@@ -163,27 +163,27 @@ pub enum ServerMessage {
 
     /// A player left the lobby.
     PlayerLeft {
-        player_id: String,
+        player_id: i64,
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 
     /// A player reconnected after disconnection.
-    PlayerReconnected { player_id: String },
+    PlayerReconnected { player_id: i64 },
 
     /// A player disconnected (may reconnect).
     PlayerDisconnected {
-        player_id: String,
+        player_id: i64,
         /// Grace period in seconds before they're removed
         grace_period_seconds: u32,
     },
 
     /// A player's ready state changed.
-    PlayerReadyChanged { player_id: String, is_ready: bool },
+    PlayerReadyChanged { player_id: i64, is_ready: bool },
 
     /// A word was successfully scored.
     WordScored {
-        player_id: String,
+        player_id: i64,
         game_id: String,
         word: String,
         score: i32,
@@ -201,7 +201,7 @@ pub enum ServerMessage {
 
     /// Turn changed to another player.
     TurnChanged {
-        player_id: String,
+        player_id: i64,
         game_id: String,
         round: u8,
         /// Time remaining for this turn (if timer active)
@@ -210,7 +210,7 @@ pub enum ServerMessage {
     },
 
     /// A player passed their turn.
-    TurnPassed { player_id: String, game_id: String },
+    TurnPassed { player_id: i64, game_id: String },
 
     /// Round number changed.
     RoundChanged {
@@ -221,7 +221,7 @@ pub enum ServerMessage {
 
     /// Board was shuffled.
     BoardShuffled {
-        player_id: String,
+        player_id: i64,
         game_id: String,
         new_grid: Grid,
         gems_spent: i32,
@@ -231,7 +231,7 @@ pub enum ServerMessage {
 
     /// A tile was swapped.
     TileSwapped {
-        player_id: String,
+        player_id: i64,
         game_id: String,
         row: usize,
         col: usize,
@@ -243,10 +243,10 @@ pub enum ServerMessage {
     },
 
     /// Player entered swap mode (for animation).
-    SwapModeEntered { player_id: String, game_id: String },
+    SwapModeEntered { player_id: i64, game_id: String },
 
     /// Player exited swap mode.
-    SwapModeExited { player_id: String, game_id: String },
+    SwapModeExited { player_id: i64, game_id: String },
 
     // ========================================================================
     // Spectator Messages
@@ -265,14 +265,11 @@ pub enum ServerMessage {
     },
 
     /// A spectator left.
-    SpectatorRemoved {
-        spectator_id: String,
-        game_id: String,
-    },
+    SpectatorRemoved { spectator_id: i64, game_id: String },
 
     /// Spectator joined as player.
     SpectatorBecamePlayer {
-        player_id: String,
+        player_id: i64,
         username: String,
         game_id: String,
     },
@@ -282,7 +279,7 @@ pub enum ServerMessage {
     // ========================================================================
     /// Another player's tile selection (for live preview).
     SelectionUpdate {
-        player_id: String,
+        player_id: i64,
         game_id: String,
         positions: Vec<super::types::Position>,
     },
@@ -298,13 +295,13 @@ pub enum ServerMessage {
 
     /// Turn timer started (vote passed).
     TurnTimerStarted {
-        target_player_id: String,
+        target_player_id: i64,
         game_id: String,
         seconds: u32,
     },
 
     /// Turn timer expired - player auto-passed.
-    TurnTimerExpired { player_id: String, game_id: String },
+    TurnTimerExpired { player_id: i64, game_id: String },
 
     // ========================================================================
     // Queue
@@ -357,7 +354,7 @@ pub enum ServerMessage {
         state: String,
         grid: Grid,
         players: Vec<PlayerInfo>,
-        current_turn: String,
+        current_turn: i64,
         round: i32,
         max_rounds: i32,
         used_words: Vec<String>,
@@ -526,7 +523,7 @@ pub struct LobbySnapshot {
     pub games: Vec<LobbyGameInfo>,
     /// User ID of the lobby host
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_id: Option<String>,
+    pub host_id: Option<i64>,
     /// Maximum players allowed
     #[serde(default = "default_max_players")]
     pub max_players: u8,
@@ -544,7 +541,7 @@ mod tests {
     #[test]
     fn test_server_message_into_json() {
         let msg = ServerMessage::BoardShuffled {
-            player_id: "1234567890".to_string(),
+            player_id: 1234567890,
             game_id: "1234567890".to_string(),
             new_grid: Grid::new(),
             gems_spent: 0,
@@ -552,7 +549,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"board_shuffled""#));
-        assert!(json.contains(r#""player_id":"1234567890""#));
+        assert!(json.contains(r#""player_id":1234567890"#));
         assert!(json.contains(r#""game_id":"1234567890""#));
         assert!(json.contains(r#""new_grid":[]"#));
         assert!(json.contains(r#""gems_spent":0"#));
@@ -600,7 +597,7 @@ mod tests {
     fn test_player_joined_serialization() {
         let msg = ServerMessage::PlayerJoined {
             player: LobbyPlayerInfo {
-                user_id: "123".to_string(),
+                user_id: 123,
                 username: "TestPlayer".to_string(),
                 avatar_url: None,
                 is_ready: false,
@@ -609,13 +606,13 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"player_joined""#));
-        assert!(json.contains(r#""user_id":"123""#));
+        assert!(json.contains(r#""user_id":123"#));
     }
 
     #[test]
     fn test_game_state_update_legacy() {
         // Verify legacy format still works
-        let json = r#"{"type":"game_state","game_id":"abc","state":"in_progress","grid":[],"players":[],"current_turn":"123","round":1,"max_rounds":5,"used_words":[],"spectators":[],"timer_vote_state":{"status":"idle"}}"#;
+        let json = r#"{"type":"game_state","game_id":"abc","state":"in_progress","grid":[],"players":[],"current_turn":123,"round":1,"max_rounds":5,"used_words":[],"spectators":[],"timer_vote_state":{"status":"idle"}}"#;
         let msg: ServerMessage = serde_json::from_str(json).unwrap();
         assert!(matches!(msg, ServerMessage::GameStateUpdate { .. }));
     }
@@ -625,7 +622,7 @@ mod tests {
         assert!(!ServerMessage::HeartbeatAck { server_time: 0 }.should_store_for_replay());
         assert!(ServerMessage::PlayerJoined {
             player: LobbyPlayerInfo {
-                user_id: "1".into(),
+                user_id: 1,
                 username: "x".into(),
                 avatar_url: None,
                 is_ready: false,
@@ -650,7 +647,7 @@ mod tests {
     #[test]
     fn test_selection_update_serialization() {
         let msg = ServerMessage::SelectionUpdate {
-            player_id: "player1".to_string(),
+            player_id: 11,
             game_id: "game1".to_string(),
             positions: vec![
                 types::Position { row: 0, col: 0 },
@@ -659,7 +656,7 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"selection_update""#));
-        assert!(json.contains(r#""player_id":"player1""#));
+        assert!(json.contains(r#""player_id":11"#));
         assert!(json.contains(r#""game_id":"game1""#));
     }
 
