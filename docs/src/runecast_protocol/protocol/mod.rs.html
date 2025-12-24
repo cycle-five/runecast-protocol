@@ -164,7 +164,7 @@
 <a href=#164 id=164 data-nosnippet>164</a>            players: serde_json::from_value(value.get(<span class="string">"players"</span>)<span class="question-mark">?</span>.clone()).ok()<span class="question-mark">?</span>,
 <a href=#165 id=165 data-nosnippet>165</a>            spectators: serde_json::from_value(value.get(<span class="string">"spectators"</span>)<span class="question-mark">?</span>.clone())
 <a href=#166 id=166 data-nosnippet>166</a>                .unwrap_or_default(),
-<a href=#167 id=167 data-nosnippet>167</a>            current_turn: value.get(<span class="string">"current_turn"</span>)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>.to_string(),
+<a href=#167 id=167 data-nosnippet>167</a>            current_turn: value.get(<span class="string">"current_turn"</span>).and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))<span class="question-mark">?</span>,
 <a href=#168 id=168 data-nosnippet>168</a>            round: value.get(<span class="string">"round"</span>)<span class="question-mark">?</span>.as_i64()<span class="question-mark">? </span><span class="kw">as </span>u8,
 <a href=#169 id=169 data-nosnippet>169</a>            max_rounds: value.get(<span class="string">"max_rounds"</span>)<span class="question-mark">?</span>.as_i64()<span class="question-mark">? </span><span class="kw">as </span>u8,
 <a href=#170 id=170 data-nosnippet>170</a>            used_words: serde_json::from_value(value.get(<span class="string">"used_words"</span>)<span class="question-mark">?</span>.clone())
@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>            state: state_str.to_string(),
 <a href=#200 id=200 data-nosnippet>200</a>            grid: snapshot.grid.clone(),
 <a href=#201 id=201 data-nosnippet>201</a>            players: snapshot.players.clone(),
-<a href=#202 id=202 data-nosnippet>202</a>            current_turn: snapshot.current_turn.clone(),
+<a href=#202 id=202 data-nosnippet>202</a>            current_turn: snapshot.current_turn,
 <a href=#203 id=203 data-nosnippet>203</a>            round: snapshot.round <span class="kw">as </span>i32,
 <a href=#204 id=204 data-nosnippet>204</a>            max_rounds: snapshot.max_rounds <span class="kw">as </span>i32,
 <a href=#205 id=205 data-nosnippet>205</a>            used_words: snapshot.used_words.clone(),
