@@ -13,6 +13,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::protocol::GameType;
+
 use super::types::{
     AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot, Grid, LobbyChange,
     LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, ScoreInfo, SpectatorInfo,
@@ -305,6 +307,16 @@ pub enum ServerMessage {
     TurnTimerExpired { player_id: String, game_id: String },
 
     // ========================================================================
+    // Queue
+    // ========================================================================
+    //
+    PlayerQueueChanged {
+        player_id: i64,
+        old_queue: Option<GameType>,
+        new_queue: Option<GameType>,
+    },
+
+    // ========================================================================
     // Queue Messages (Legacy)
     // ========================================================================
     /// Player joined the game queue.
@@ -429,6 +441,7 @@ impl ServerMessage {
             Self::PlayerReconnected { .. } => "player_reconnected",
             Self::PlayerDisconnected { .. } => "player_disconnected",
             Self::PlayerReadyChanged { .. } => "player_ready_changed",
+            Self::PlayerQueueChanged { .. } => "player_queue_changed",
             Self::WordScored { .. } => "word_scored",
             Self::TurnChanged { .. } => "turn_changed",
             Self::TurnPassed { .. } => "turn_passed",
@@ -474,16 +487,30 @@ impl ServerMessage {
                     state: TimerVoteState::Idle,
                     ..
                 }
+                | Self::PlayerQueueChanged { .. }
+                | Self::TurnTimerStarted { .. }
+                | Self::TurnTimerExpired { .. }
         )
     }
 }
 
-impl Into<serde_json::Value> for ServerMessage {
-    fn into(self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap()
+/// Convert a ServerMessage to a serde_json::Value.
+impl From<ServerMessage> for serde_json::Value {
+    fn from(msg: ServerMessage) -> Self {
+        serde_json::to_value(msg).unwrap()
     }
 }
 
+/// Convert a serde_json::Value to a ServerMessage.
+impl TryFrom<serde_json::Value> for ServerMessage {
+    type Error = serde_json::Error;
+
+    fn try_from(
+        value: serde_json::Value,
+    ) -> Result<Self, <ServerMessage as TryFrom<serde_json::Value>>::Error> {
+        serde_json::from_value(value)
+    }
+}
 // ============================================================================
 // Snapshot Types
 // ============================================================================
@@ -512,7 +539,7 @@ fn default_max_players() -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::types;
+    use crate::protocol::{types, GameType};
 
     #[test]
     fn test_server_message_into_json() {
@@ -634,5 +661,19 @@ mod tests {
         assert!(json.contains(r#""type":"selection_update""#));
         assert!(json.contains(r#""player_id":"player1""#));
         assert!(json.contains(r#""game_id":"game1""#));
+    }
+
+    #[test]
+    fn test_player_queue_changed_serialization() {
+        let msg = ServerMessage::PlayerQueueChanged {
+            player_id: 123,
+            old_queue: Some(GameType::Open),
+            new_queue: Some(GameType::Adventure),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"player_queue_changed""#));
+        assert!(json.contains(r#""player_id":123"#));
+        assert!(json.contains(r#""old_queue":"open""#));
+        assert!(json.contains(r#""new_queue":"adventure""#));
     }
 }
