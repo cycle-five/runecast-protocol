@@ -8,6 +8,7 @@ description = "Protocol definitions for RuneCast WebSocket communication"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+serde_with = { version = "3.0", features = ["macros"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4"
