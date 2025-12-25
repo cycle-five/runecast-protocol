@@ -165,7 +165,7 @@ fn default_true() -> bool {
     true
 }
 
-/// Player info specifically for GameStarted message (includes turn order).
+/// Player info specifically for `GameStarted` message (includes turn order).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePlayerInfo {
@@ -461,6 +461,7 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     /// Get a human-readable message for this error code.
+    #[must_use]
     pub fn message(&self) -> &'static str {
         match self {
             Self::NotAuthenticated => "Not authenticated",
