@@ -227,6 +227,7 @@ pub struct LobbyGameInfo {
 // ============================================================================
 
 /// Complete snapshot of the game state.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameSnapshot {
     pub game_id: String,
@@ -234,6 +235,7 @@ pub struct GameSnapshot {
     pub grid: Grid,
     pub players: Vec<PlayerInfo>,
     pub spectators: Vec<SpectatorInfo>,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
     pub current_turn: i64,
     pub round: u8,
     pub max_rounds: u8,
@@ -622,6 +624,6 @@ mod tests {
         assert!(json.contains(r#""game_id":"game1""#));
         assert!(json.contains(r#""players":[{"user_id":"1""#));
         assert!(json.contains(r#""spectators":[{"user_id":"2""#));
-        assert!(json.contains(r#""current_turn":1"#));
+        assert!(json.contains(r#""current_turn":"1""#));
     }
 }

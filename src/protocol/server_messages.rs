@@ -130,6 +130,7 @@ pub enum ServerMessage {
         /// Your turn order (0-indexed)
         your_turn_order: u8,
         /// Who goes first
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         current_turn: i64,
         round: u8,
         max_rounds: u8,
@@ -155,6 +156,7 @@ pub enum ServerMessage {
         /// Final scores, sorted by rank
         final_scores: Vec<ScoreInfo>,
         /// Winner's user ID
+        #[serde_as(as = "serde_with::DisplayFromStr")]
         winner_id: i64,
         /// Whether it was a draw
         #[serde(default)]
