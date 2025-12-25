@@ -167,7 +167,7 @@ pub mod compat {
             "in_progress" => GameState::InProgress,
             "finished" => GameState::Finished,
             "cancelled" => GameState::Cancelled,
-            _ => panic!("Invalid game state: {state_str}"),
+            _ => return None,
         };
 
         Some(GameSnapshot {
