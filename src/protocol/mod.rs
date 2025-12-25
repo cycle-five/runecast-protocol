@@ -164,7 +164,10 @@ pub mod compat {
             players: serde_json::from_value(value.get("players")?.clone()).ok()?,
             spectators: serde_json::from_value(value.get("spectators")?.clone())
                 .unwrap_or_default(),
-            current_turn: value.get("current_turn").and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))?,
+            current_turn: value.get("current_turn").and_then(|v| {
+                v.as_i64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })?,
             round: value.get("round")?.as_i64()? as u8,
             max_rounds: value.get("max_rounds")?.as_i64()? as u8,
             used_words: serde_json::from_value(value.get("used_words")?.clone())
@@ -251,7 +254,11 @@ mod tests {
     #[test]
     fn test_constants() {
         assert_eq!(HEARTBEAT_INTERVAL_MS, 30_000);
-        assert!(HEARTBEAT_TIMEOUT_MS > HEARTBEAT_INTERVAL_MS);
-        assert!(RECONNECT_GRACE_MS > HEARTBEAT_TIMEOUT_MS);
+        const {
+            assert!(HEARTBEAT_TIMEOUT_MS > HEARTBEAT_INTERVAL_MS);
+        }
+        const {
+            assert!(RECONNECT_GRACE_MS > HEARTBEAT_TIMEOUT_MS);
+        }
     }
 }

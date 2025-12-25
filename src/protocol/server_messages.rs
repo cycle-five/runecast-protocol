@@ -179,6 +179,8 @@ pub enum ServerMessage {
 
     /// A player disconnected (may reconnect).
     PlayerDisconnected {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        game_id: Option<String>,
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         /// Grace period in seconds before they're removed
@@ -501,6 +503,7 @@ impl ServerMessage {
             Self::AdminGameDeleted { .. } => "admin_game_deleted",
             Self::GameStateUpdate { .. } => "game_state",
             Self::LobbyStateUpdate { .. } => "lobby_state",
+
             Self::Error { .. } => "error",
         }
     }
