@@ -110,6 +110,13 @@ pub enum ServerMessage {
         lobby_code: String,
     },
 
+    /// The lobby host has changed.
+    HostChanged {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        new_host_id: i64,
+        lobby_id: String,
+    },
+
     // ========================================================================
     // Game Lifecycle Messages
     // ========================================================================
@@ -308,6 +315,9 @@ pub enum ServerMessage {
         game_id: String,
     },
 
+    /// Confirmation of leaving spectator mode.
+    SpectatorLeft,
+
     // ========================================================================
     // Live Update Messages
     // ========================================================================
@@ -426,6 +436,7 @@ pub enum ServerMessage {
 
 impl ServerMessage {
     /// Create an error message from an error code.
+    #[must_use]
     pub fn error(code: ErrorCode) -> Self {
         Self::Error {
             message: code.message().to_string(),
@@ -457,6 +468,7 @@ impl ServerMessage {
     }
 
     /// Get the message type as a string (for logging/debugging).
+    #[must_use]
     pub fn message_type(&self) -> &'static str {
         match self {
             Self::Hello { .. } => "hello",
@@ -469,6 +481,7 @@ impl ServerMessage {
             Self::LobbyDelta { .. } => "lobby_delta",
             Self::LobbyLeft => "lobby_left",
             Self::CustomLobbyCreated { .. } => "custom_lobby_created",
+            Self::HostChanged { .. } => "host_changed",
             Self::GameStarted { .. } => "game_started",
             Self::GameSnapshot { .. } => "game_snapshot",
             Self::GameDelta { .. } => "game_delta",
@@ -491,6 +504,7 @@ impl ServerMessage {
             Self::SpectatorJoined { .. } => "spectator_joined",
             Self::SpectatorAdded { .. } => "spectator_added",
             Self::SpectatorRemoved { .. } => "spectator_removed",
+            Self::SpectatorLeft => "spectator_left",
             Self::SpectatorBecamePlayer { .. } => "spectator_became_player",
             Self::SelectionUpdate { .. } => "selection_update",
             Self::TimerVoteUpdate { .. } => "timer_vote_update",
@@ -509,6 +523,7 @@ impl ServerMessage {
     }
 
     /// Check if this is an error message.
+    #[must_use]
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error { .. })
     }
@@ -516,6 +531,7 @@ impl ServerMessage {
     /// Check if this message should be stored for reconnection replay.
     ///
     /// Some messages are transient and don't need to be replayed.
+    #[must_use]
     pub fn should_store_for_replay(&self) -> bool {
         !matches!(
             self,
@@ -533,14 +549,14 @@ impl ServerMessage {
     }
 }
 
-/// Convert a ServerMessage to a serde_json::Value.
+/// Convert a `ServerMessage` to a `serde_json::Value`.
 impl From<ServerMessage> for serde_json::Value {
     fn from(msg: ServerMessage) -> Self {
         serde_json::to_value(msg).unwrap()
     }
 }
 
-/// Convert a serde_json::Value to a ServerMessage.
+/// Convert a `serde_json::Value` to a `ServerMessage`.
 impl TryFrom<serde_json::Value> for ServerMessage {
     type Error = serde_json::Error;
 
@@ -583,7 +599,7 @@ mod tests {
     #[test]
     fn test_server_message_into_json() {
         let msg = ServerMessage::BoardShuffled {
-            player_id: 1234567890,
+            player_id: 1_234_567_890,
             game_id: "1234567890".to_string(),
             new_grid: Grid::new(),
             gems_spent: 0,
@@ -601,7 +617,7 @@ mod tests {
     #[test]
     fn test_heartbeat_ack_serialization() {
         let msg = ServerMessage::HeartbeatAck {
-            server_time: 1701234567890,
+            server_time: 1_701_234_567_890,
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"heartbeat_ack""#));

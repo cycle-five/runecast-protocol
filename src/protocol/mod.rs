@@ -1,4 +1,4 @@
-//! Protocol module for RuneCast WebSocket communication.
+//! Protocol module for `RuneCast` WebSocket communication.
 //!
 //! This module defines all message types exchanged between the frontend client
 //! and backend server over WebSocket connections.
@@ -94,12 +94,16 @@ pub const PROTOCOL_VERSION: &str = "1.0.0";
 ///
 /// This allows gradual migration without breaking the existing frontend.
 pub mod compat {
-    use super::*;
+    use super::{ClientMessage, Envelope, GameSnapshot, GameState, MaybeEnveloped, ServerMessage};
     use serde_json::Value;
 
     /// Parse a raw JSON message, handling both legacy and new formats.
     ///
     /// Returns the parsed message and whether it was enveloped.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `serde_json::Error` if the message cannot be parsed.
     pub fn parse_client_message(
         json: &str,
     ) -> Result<(ClientMessage, Option<u64>, Option<u64>), serde_json::Error> {
@@ -121,6 +125,10 @@ pub mod compat {
     }
 
     /// Serialize a server message, optionally wrapping in an envelope.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `serde_json::Error` if the message cannot be serialized.
     pub fn serialize_server_message(
         msg: &ServerMessage,
         seq: Option<u64>,
@@ -138,10 +146,15 @@ pub mod compat {
         }
     }
 
-    /// Convert legacy game state JSON to new GameSnapshot format.
+    /// Convert legacy game state JSON to new `GameSnapshot` format.
     ///
     /// This handles the transition from the flat `game_state` message
     /// to the structured `GameSnapshot` type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `state` field is not a valid game state.
+    #[must_use]
     pub fn legacy_game_state_to_snapshot(value: &Value) -> Option<GameSnapshot> {
         // Extract fields from legacy format
         let game_id = value.get("game_id")?.as_str()?.to_string();
@@ -154,7 +167,7 @@ pub mod compat {
             "in_progress" => GameState::InProgress,
             "finished" => GameState::Finished,
             "cancelled" => GameState::Cancelled,
-            _ => GameState::Idle,
+            _ => return None,
         };
 
         Some(GameSnapshot {
@@ -168,8 +181,8 @@ pub mod compat {
                 v.as_i64()
                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
             })?,
-            round: value.get("round")?.as_i64()? as u8,
-            max_rounds: value.get("max_rounds")?.as_i64()? as u8,
+            round: u8::try_from(value.get("round")?.as_i64()?).ok()?,
+            max_rounds: u8::try_from(value.get("max_rounds")?.as_i64()?).ok()?,
             used_words: serde_json::from_value(value.get("used_words")?.clone())
                 .unwrap_or_default(),
             timer_vote_state: serde_json::from_value(
@@ -184,9 +197,10 @@ pub mod compat {
         })
     }
 
-    /// Convert new GameSnapshot to legacy game_state message format.
+    /// Convert new `GameSnapshot` to legacy `game_state` message format.
     ///
     /// Used when sending to clients that haven't upgraded yet.
+    #[must_use]
     pub fn snapshot_to_legacy_game_state(snapshot: &GameSnapshot) -> ServerMessage {
         let state_str = match snapshot.state {
             GameState::Idle => "idle",
@@ -203,8 +217,8 @@ pub mod compat {
             grid: snapshot.grid.clone(),
             players: snapshot.players.clone(),
             current_turn: snapshot.current_turn,
-            round: snapshot.round as i32,
-            max_rounds: snapshot.max_rounds as i32,
+            round: i32::from(snapshot.round),
+            max_rounds: i32::from(snapshot.max_rounds),
             used_words: snapshot.used_words.clone(),
             spectators: snapshot.spectators.clone(),
             timer_vote_state: snapshot.timer_vote_state.clone(),

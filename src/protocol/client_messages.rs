@@ -102,13 +102,13 @@ pub enum ClientMessage {
 
     /// Toggle ready state within the current queue.
     ///
-    /// Similar to ToggleReady but operates within the queue context.
+    /// Similar to `ToggleReady` but operates within the queue context.
     ToggleQueueReady,
 
     // ========================================================================
     // Game Lifecycle Messages
     // ========================================================================
-    /// Request to create a new game (legacy - prefer StartGame).
+    /// Request to create a new game (legacy - prefer `StartGame`).
     #[serde(rename = "create_game")]
     CreateGame { mode: GameMode },
 
@@ -254,6 +254,7 @@ pub enum ClientMessage {
 
 impl ClientMessage {
     /// Get the message type as a string (for logging/debugging).
+    #[must_use]
     pub fn message_type(&self) -> &'static str {
         match self {
             Self::Identify { .. } => "identify",
@@ -289,6 +290,7 @@ impl ClientMessage {
     }
 
     /// Check if this message requires the sender to be in a lobby.
+    #[must_use]
     pub fn requires_lobby(&self) -> bool {
         matches!(
             self,
@@ -316,6 +318,7 @@ impl ClientMessage {
     }
 
     /// Check if this message requires an active game.
+    #[must_use]
     pub fn requires_active_game(&self) -> bool {
         matches!(
             self,
@@ -332,6 +335,7 @@ impl ClientMessage {
     }
 
     /// Check if this message requires it to be the sender's turn.
+    #[must_use]
     pub fn requires_turn(&self) -> bool {
         matches!(
             self,
