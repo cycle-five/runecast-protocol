@@ -7,7 +7,7 @@
 ///
 /// This is embedded in all player-related structs to avoid field duplication.
 /// Contains the fields that are constant for a player's session.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlayerIdentity {
     /// Database player ID
     pub player_id: i64,
