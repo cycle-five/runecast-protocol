@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["protocol"]};
+window.SIDEBAR_ITEMS = {"mod":["player","protocol"]};
