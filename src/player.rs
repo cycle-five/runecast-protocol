@@ -7,10 +7,10 @@
 ///
 /// This is embedded in all player-related structs to avoid field duplication.
 /// Contains the fields that are constant for a player's session.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct PlayerIdentity {
-    /// Database player ID
-    pub player_id: i64,
+    /// Database user ID
+    pub user_id: i64,
     /// Display name
     pub username: String,
     /// Avatar URL if available
@@ -20,9 +20,9 @@ pub struct PlayerIdentity {
 impl PlayerIdentity {
     /// Create a new player identity.
     #[must_use]
-    pub fn new(player_id: i64, username: impl Into<String>, avatar_url: Option<String>) -> Self {
+    pub fn new(user_id: i64, username: impl Into<String>, avatar_url: Option<String>) -> Self {
         Self {
-            player_id,
+            user_id,
             username: username.into(),
             avatar_url,
         }
@@ -36,7 +36,7 @@ impl PlayerIdentity {
 /// lobbies and games.
 ///
 /// Contains both identity (immutable for session) and session state (mutable).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PlayerContext {
     /// Core identity (immutable for session)
     pub identity: PlayerIdentity,
@@ -56,13 +56,13 @@ impl PlayerContext {
     /// Create a new context for a freshly connected player.
     #[must_use]
     pub fn new(
-        player_id: i64,
+        user_id: i64,
         username: impl Into<String>,
         avatar_url: Option<String>,
         is_admin: bool,
     ) -> Self {
         Self {
-            identity: PlayerIdentity::new(player_id, username, avatar_url),
+            identity: PlayerIdentity::new(user_id, username, avatar_url),
             is_admin,
             lobby_id: None,
             game_id: None,
@@ -84,10 +84,10 @@ impl PlayerContext {
 
     // === Convenience accessors ===
 
-    /// Get player ID.
+    /// Get user ID.
     #[must_use]
-    pub fn player_id(&self) -> i64 {
-        self.identity.player_id
+    pub fn user_id(&self) -> i64 {
+        self.identity.user_id
     }
 
     /// Get username.
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_player_identity_new() {
         let identity = PlayerIdentity::new(123, "TestUser", Some("http://avatar.url".to_string()));
-        assert_eq!(identity.player_id, 123);
+        assert_eq!(identity.user_id, 123);
         assert_eq!(identity.username, "TestUser");
         assert_eq!(identity.avatar_url, Some("http://avatar.url".to_string()));
     }
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn test_player_context_new() {
         let ctx = PlayerContext::new(123, "TestUser", None, false);
-        assert_eq!(ctx.player_id(), 123);
+        assert_eq!(ctx.user_id(), 123);
         assert_eq!(ctx.username(), "TestUser");
         assert_eq!(ctx.avatar_url(), None);
         assert!(!ctx.is_admin);
@@ -187,5 +187,20 @@ mod tests {
         // Leave lobby
         ctx.set_lobby(None);
         assert!(!ctx.in_lobby());
+    }
+
+    #[test]
+    fn test_player_context_from_identity() {
+        let identity =
+            PlayerIdentity::new(456, "FromIdentity", Some("http://example.com".to_string()));
+        let ctx = PlayerContext::from_identity(identity.clone(), true);
+
+        assert_eq!(ctx.user_id(), 456);
+        assert_eq!(ctx.username(), "FromIdentity");
+        assert_eq!(ctx.avatar_url(), Some("http://example.com"));
+        assert!(ctx.is_admin);
+        assert!(!ctx.in_lobby());
+        assert!(!ctx.in_game());
+        assert!(!ctx.is_spectating);
     }
 }
