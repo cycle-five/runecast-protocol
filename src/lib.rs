@@ -6,6 +6,7 @@
 //! - Client-to-server message types
 //! - Server-to-client message types
 //! - Shared data types (`Grid`, `Position`, `PlayerInfo`, etc.)
+//! - Player identity and context types
 //! - Compatibility layer for gradual migration
 //!
 //! # Usage
@@ -26,9 +27,11 @@
 //! let envelope = Envelope::new(42, response);
 //! ```
 
+pub mod player;
 pub mod protocol;
 
 // Re-export commonly used items at crate root for convenience
+pub use player::{PlayerContext, PlayerIdentity};
 pub use protocol::compat::{
     legacy_game_state_to_snapshot, parse_client_message, serialize_server_message,
     snapshot_to_legacy_game_state,
