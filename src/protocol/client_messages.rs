@@ -48,6 +48,12 @@ pub enum ClientMessage {
         seq: u64,
     },
 
+    /// Request a full state sync from the server.
+    ///
+    /// Used to recover from state desync between client and server.
+    /// Server responds with `LobbySnapshot` and optionally `GameSnapshot`.
+    RequestSync,
+
     // ========================================================================
     // Lobby Messages
     // ========================================================================
@@ -260,6 +266,7 @@ impl ClientMessage {
             Self::Identify { .. } => "identify",
             Self::Heartbeat => "heartbeat",
             Self::Ack { .. } => "ack",
+            Self::RequestSync => "request_sync",
             Self::JoinChannelLobby { .. } => "join_channel_lobby",
             Self::CreateCustomLobby => "create_custom_lobby",
             Self::JoinCustomLobby { .. } => "join_custom_lobby",
