@@ -1,6 +1,6 @@
 [package]
 name = "runecast-protocol"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 description = "Protocol definitions for RuneCast WebSocket communication"
 
@@ -8,7 +8,7 @@ description = "Protocol definitions for RuneCast WebSocket communication"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-serde_with = { version = "3.0", features = ["macros"] }
+serde_with = { version = "3.16", features = ["macros"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4"
