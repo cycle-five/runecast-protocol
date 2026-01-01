@@ -92,18 +92,19 @@ impl std::fmt::Display for GameType {
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyPlayerInfo {
-    /// User ID (string to preserve JS number precision)
+    /// User ID
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
-    /// Whether the player has marked themselves ready
-    #[serde(default)]
-    pub is_ready: bool,
     /// The player's status within a game queue, if they are in one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_queue: Option<GameType>,
+    /// Game they are in, if any
+    pub active_game_id: Option<String>,
+    /// Game they are spectating, if any
+    pub spectate_game_id: Option<String>,
 }
 
 /// Summary of a game visible from the lobby.
@@ -565,8 +566,9 @@ mod tests {
                 user_id: 123,
                 username: "TestUser".to_string(),
                 avatar_url: None,
-                is_ready: false,
                 current_queue: None,
+                active_game_id: None,
+                spectate_game_id: None,
             },
         };
         let json = serde_json::to_string(&change).unwrap();

@@ -109,14 +109,6 @@ pub enum ServerMessage {
         lobby_id: String,
         lobby_code: String,
     },
-
-    /// The lobby host has changed.
-    HostChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        new_host_id: i64,
-        lobby_id: String,
-    },
-
     // ========================================================================
     // Game Lifecycle Messages
     // ========================================================================
@@ -483,7 +475,6 @@ impl ServerMessage {
             Self::LobbyDelta { .. } => "lobby_delta",
             Self::LobbyLeft => "lobby_left",
             Self::CustomLobbyCreated { .. } => "custom_lobby_created",
-            Self::HostChanged { .. } => "host_changed",
             Self::GameStarted { .. } => "game_started",
             Self::GameSnapshot { .. } => "game_snapshot",
             Self::GameDelta { .. } => "game_delta",
@@ -581,9 +572,6 @@ pub struct LobbySnapshot {
     pub lobby_code: Option<String>,
     pub players: Vec<LobbyPlayerInfo>,
     pub games: Vec<LobbyGameInfo>,
-    /// User ID of the lobby host
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_id: Option<i64>,
     /// Maximum players allowed
     #[serde(default = "default_max_players")]
     pub max_players: u8,
@@ -660,8 +648,9 @@ mod tests {
                 user_id: 123,
                 username: "TestPlayer".to_string(),
                 avatar_url: None,
-                is_ready: false,
                 current_queue: None,
+                active_game_id: None,
+                spectate_game_id: None,
             },
         };
         let json = serde_json::to_string(&msg).unwrap();
@@ -685,8 +674,9 @@ mod tests {
                 user_id: 1,
                 username: "x".into(),
                 avatar_url: None,
-                is_ready: false,
                 current_queue: None,
+                active_game_id: None,
+                spectate_game_id: None,
             }
         }
         .should_store_for_replay());
