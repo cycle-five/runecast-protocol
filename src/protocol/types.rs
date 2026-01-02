@@ -299,6 +299,44 @@ pub enum TimerVoteState {
 }
 
 // ============================================================================
+// Rematch Countdown Types
+// ============================================================================
+
+/// State of the auto-rematch countdown after a game ends.
+///
+/// When a game ends, players are automatically re-queued and a countdown begins.
+/// Any player can trigger an early start, or opt out to return to the lobby.
+#[serde_with::serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum RematchCountdownState {
+    /// No rematch countdown active
+    #[default]
+    Idle,
+
+    /// Countdown is active - new game will start when it reaches 0
+    Active {
+        /// When the countdown expires (absolute time for clock sync)
+        expires_at: chrono::DateTime<chrono::Utc>,
+        /// Seconds remaining (for initial state display)
+        seconds_remaining: u32,
+        /// Player IDs still in the rematch queue
+        #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+        player_ids: Vec<i64>,
+        /// The queue/game type for the rematch
+        game_type: GameType,
+    },
+
+    /// A player triggered an early start
+    Starting {
+        /// Who triggered the early start (None if countdown expired naturally)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
+        triggered_by: Option<i64>,
+    },
+}
+
+// ============================================================================
 // Delta Types (for efficient state updates)
 // ============================================================================
 

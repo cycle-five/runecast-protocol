@@ -17,8 +17,8 @@ use crate::protocol::GameType;
 
 use super::types::{
     AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot, Grid, LobbyChange,
-    LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, ScoreInfo, SpectatorInfo,
-    TimerVoteState,
+    LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, RematchCountdownState, ScoreInfo,
+    SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -356,6 +356,41 @@ pub enum ServerMessage {
     },
 
     // ========================================================================
+    // Rematch Countdown Messages
+    // ========================================================================
+    /// Rematch countdown state update.
+    ///
+    /// Sent to all players on the results screen after a game ends.
+    RematchCountdownUpdate {
+        /// Current countdown state
+        state: RematchCountdownState,
+        /// The game that just ended
+        previous_game_id: String,
+    },
+
+    /// A player opted out of rematch queue.
+    ///
+    /// Broadcast to remaining players so they can update the player list.
+    PlayerLeftRematch {
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        /// The game they left from
+        previous_game_id: String,
+    },
+
+    /// Rematch is starting (sent right before GameStarted).
+    ///
+    /// Allows frontend to show "Starting..." before the new game begins.
+    RematchStarting {
+        /// Who triggered the early start (None if countdown expired naturally)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
+        triggered_by: Option<i64>,
+        /// The previous game that ended
+        previous_game_id: String,
+    },
+
+    // ========================================================================
     // Queue
     // ========================================================================
     //
@@ -512,6 +547,9 @@ impl ServerMessage {
             Self::TimerVoteUpdate { .. } => "timer_vote_update",
             Self::TurnTimerStarted { .. } => "turn_timer_started",
             Self::TurnTimerExpired { .. } => "turn_timer_expired",
+            Self::RematchCountdownUpdate { .. } => "rematch_countdown_update",
+            Self::PlayerLeftRematch { .. } => "player_left_rematch",
+            Self::RematchStarting { .. } => "rematch_starting",
             Self::QueueJoined { .. } => "queue_joined",
             Self::QueueUpdate { .. } => "queue_update",
             Self::QueueLeft => "queue_left",
