@@ -230,6 +230,27 @@ pub enum ClientMessage {
     VoteForTimer { game_id: String },
 
     // ========================================================================
+    // Rematch Messages
+    // ========================================================================
+    /// Trigger early rematch start for all players.
+    ///
+    /// Cancels the countdown and starts the game immediately for everyone
+    /// still in the rematch queue.
+    TriggerRematch {
+        /// The game that just ended (for validation)
+        previous_game_id: String,
+    },
+
+    /// Leave the rematch queue and return to lobby.
+    ///
+    /// The player will be removed from the rematch player list and
+    /// other players will be notified.
+    LeaveRematch {
+        /// The game to leave rematch for
+        previous_game_id: String,
+    },
+
+    // ========================================================================
     // Admin Messages
     // ========================================================================
     /// Request list of games (admin only).
@@ -290,6 +311,8 @@ impl ClientMessage {
             Self::SelectionUpdate { .. } => "selection_update",
             Self::InitiateTimerVote { .. } => "initiate_timer_vote",
             Self::VoteForTimer { .. } => "vote_for_timer",
+            Self::TriggerRematch { .. } => "trigger_rematch",
+            Self::LeaveRematch { .. } => "leave_rematch",
             Self::AdminGetGames => "admin_get_games",
             Self::AdminDeleteGame { .. } => "admin_delete_game",
             Self::PlayerDisconnected { .. } => "player_disconnected",
@@ -319,6 +342,8 @@ impl ClientMessage {
                 | Self::SelectionUpdate { .. }
                 | Self::InitiateTimerVote { .. }
                 | Self::VoteForTimer { .. }
+                | Self::TriggerRematch { .. }
+                | Self::LeaveRematch { .. }
                 | Self::AdminGetGames
                 | Self::AdminDeleteGame { .. }
         )
