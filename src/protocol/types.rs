@@ -98,6 +98,12 @@ pub struct LobbyPlayerInfo {
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
+    /// Profile banner URL (Discord CDN)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
+    /// Profile accent color (integer representation)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accent_color: Option<i32>,
     /// The player's status within a game queue, if they are in one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_queue: Option<GameType>,
@@ -604,6 +610,8 @@ mod tests {
                 user_id: 123,
                 username: "TestUser".to_string(),
                 avatar_url: None,
+                banner_url: None,
+                accent_color: None,
                 current_queue: None,
                 active_game_id: None,
                 spectate_game_id: None,
