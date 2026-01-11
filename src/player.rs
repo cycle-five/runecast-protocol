@@ -102,6 +102,22 @@ impl PlayerContext {
         self.identity.avatar_url.as_deref()
     }
 
+    /// Return a copy of this with the avatar_url set.
+   #[must_use]
+    pub fn with_avatar_url(self, avatar_url: Option<String>) -> Self {
+        Self {
+            identity: PlayerIdentity {
+                player_id: self.identity.player_id,
+                username: self.identity.username,
+                avatar_url,
+            },
+            is_admin: self.is_admin,
+            lobby_id: self.lobby_id,
+            game_id: self.game_id,
+            is_spectating: self.is_spectating,
+        }
+    }
+
     // === State checks ===
 
     /// Check if player is in a lobby.

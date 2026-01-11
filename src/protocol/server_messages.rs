@@ -370,7 +370,7 @@ pub enum ServerMessage {
         previous_game_id: String,
     },
 
-    /// Rematch is starting (sent right before GameStarted).
+    /// Rematch is starting (sent right before `GameStarted`).
     ///
     /// Allows frontend to show "Starting..." before the new game begins.
     RematchStarting {
