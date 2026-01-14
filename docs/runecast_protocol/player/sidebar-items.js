@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["PlayerContext","PlayerIdentity"]};
+window.SIDEBAR_ITEMS = {"trait":["PlayerContext","PlayerIdentity"]};
