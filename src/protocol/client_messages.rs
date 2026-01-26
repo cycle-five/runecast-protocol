@@ -84,32 +84,22 @@ pub enum ClientMessage {
     /// If in a game, this also leaves the game.
     LeaveLobby,
 
-    /// Toggle ready state in lobby.
-    ///
-    /// Ready state indicates willingness to start a game.
-    ToggleReady,
-
     // ========================================================================
-    // Queue Messages (for matchmaking within a lobby)
+    // Game Pool Messages (waiting room for game matching)
     // ========================================================================
-    /// Join a game type queue within the lobby.
+    /// Join a game pool within the lobby.
     ///
-    /// Players must join a queue to be matched for that game type.
-    /// Only one queue can be joined at a time.
-    JoinQueue {
-        /// The game type queue to join
+    /// Players must join a game pool to be matched for that game type.
+    /// Only one game pool can be joined at a time.
+    JoinGamePool {
+        /// The game type pool to join
         game_type: GameType,
     },
 
-    /// Leave the current game queue.
+    /// Leave the current game pool.
     ///
     /// Returns the player to the main lobby view.
-    LeaveQueue,
-
-    /// Toggle ready state within the current queue.
-    ///
-    /// Similar to `ToggleReady` but operates within the queue context.
-    ToggleQueueReady,
+    LeaveGamePool,
 
     // ========================================================================
     // Game Lifecycle Messages
@@ -186,7 +176,7 @@ pub enum ClientMessage {
 
     /// Join an active game.
     ///
-    /// The player is added at the end of the turn queue.
+    /// The player is added at the end of the turn order.
     /// Previous rounds count as 0 points.
     JoinGame { game_id: String },
 
@@ -235,13 +225,13 @@ pub enum ClientMessage {
     /// Trigger early rematch start for all players.
     ///
     /// Cancels the countdown and starts the game immediately for everyone
-    /// still in the rematch queue.
+    /// still in the rematch pool.
     TriggerRematch {
         /// The game that just ended (for validation)
         previous_game_id: String,
     },
 
-    /// Leave the rematch queue and return to lobby.
+    /// Leave the rematch pool and return to lobby.
     ///
     /// The player will be removed from the rematch player list and
     /// other players will be notified.
@@ -292,10 +282,8 @@ impl ClientMessage {
             Self::CreateCustomLobby => "create_custom_lobby",
             Self::JoinCustomLobby { .. } => "join_custom_lobby",
             Self::LeaveLobby => "leave_lobby",
-            Self::ToggleReady => "toggle_ready",
-            Self::JoinQueue { .. } => "join_queue",
-            Self::LeaveQueue => "leave_queue",
-            Self::ToggleQueueReady => "toggle_queue_ready",
+            Self::JoinGamePool { .. } => "join_game_pool",
+            Self::LeaveGamePool => "leave_game_pool",
             Self::CreateGame { .. } => "create_game",
             Self::StartGame => "start_game",
             Self::SubmitWord { .. } => "submit_word",
@@ -325,10 +313,8 @@ impl ClientMessage {
         matches!(
             self,
             Self::LeaveLobby
-                | Self::ToggleReady
-                | Self::JoinQueue { .. }
-                | Self::LeaveQueue
-                | Self::ToggleQueueReady
+                | Self::JoinGamePool { .. }
+                | Self::LeaveGamePool
                 | Self::StartGame
                 | Self::SubmitWord { .. }
                 | Self::PassTurn { .. }
@@ -452,7 +438,6 @@ mod tests {
         assert!(!ClientMessage::Heartbeat.requires_lobby());
         assert!(!ClientMessage::CreateCustomLobby.requires_lobby());
         assert!(ClientMessage::StartGame.requires_lobby());
-        assert!(ClientMessage::ToggleReady.requires_lobby());
     }
 
     #[test]

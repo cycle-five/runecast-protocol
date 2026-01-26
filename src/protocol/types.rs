@@ -63,10 +63,10 @@ pub enum LobbyType {
     Custom,
 }
 
-/// Game type for queue-based matchmaking within a lobby.
+/// Game type for game pools within a lobby.
 ///
-/// Each lobby can have multiple queues, one per game type.
-/// Players join a queue to find matches for that game type.
+/// Each lobby can have multiple game pools, one per game type. Players wait in pools for matchmaking.
+/// Players join a game pool to find matches for that game type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameType {
@@ -104,9 +104,9 @@ pub struct LobbyPlayerInfo {
     /// Profile accent color (integer representation)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<i32>,
-    /// The player's status within a game queue, if they are in one.
+    /// The player's status within a game pool, if they are in one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_queue: Option<GameType>,
+    pub current_game_pool: Option<GameType>,
     /// Game they are in, if any
     pub active_game_id: Option<String>,
     /// Game they are spectating, if any
@@ -327,10 +327,10 @@ pub enum RematchCountdownState {
         expires_at: chrono::DateTime<chrono::Utc>,
         /// Seconds remaining (for initial state display)
         seconds_remaining: u32,
-        /// Player IDs still in the rematch queue
+        /// Player IDs still in the rematch pool
         #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
         player_ids: Vec<i64>,
-        /// The queue/game type for the rematch
+        /// The game pool/game type for the rematch
         game_type: GameType,
     },
 
@@ -363,13 +363,6 @@ pub enum LobbyChange {
         reason: Option<String>,
     },
 
-    /// A player's ready state changed
-    PlayerReadyChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        is_ready: bool,
-    },
-
     /// A player's connection state changed
     PlayerConnectionChanged {
         #[serde_as(as = "serde_with::DisplayFromStr")]
@@ -380,8 +373,8 @@ pub enum LobbyChange {
     /// A game's state changed
     GameStateChanged { game_id: String, state: GameState },
 
-    /// Queue count updated for a game
-    QueueUpdated { game_id: String, queue_count: u32 },
+    /// Pool count updated for a game
+    PoolUpdated { game_id: String, pool_count: u32 },
 
     /// Host changed
     HostChanged { new_host_id: String },
@@ -612,7 +605,7 @@ mod tests {
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
-                current_queue: None,
+                current_game_pool: None,
                 active_game_id: None,
                 spectate_game_id: None,
             },

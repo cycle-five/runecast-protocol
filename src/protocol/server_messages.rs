@@ -188,13 +188,6 @@ pub enum ServerMessage {
         grace_period_seconds: u32,
     },
 
-    /// A player's ready state changed.
-    PlayerReadyChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        is_ready: bool,
-    },
-
     /// A word was successfully scored.
     WordScored {
         #[serde_as(as = "serde_with::DisplayFromStr")]
@@ -360,7 +353,7 @@ pub enum ServerMessage {
         previous_game_id: String,
     },
 
-    /// A player opted out of rematch queue.
+    /// A player opted out of rematch pool.
     ///
     /// Broadcast to remaining players so they can update the player list.
     PlayerLeftRematch {
@@ -383,35 +376,35 @@ pub enum ServerMessage {
     },
 
     // ========================================================================
-    // Queue
+    // Pool
     // ========================================================================
     //
-    PlayerQueueChanged {
+    PlayerPoolChanged {
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
-        old_queue: Option<GameType>,
-        new_queue: Option<GameType>,
+        old_pool: Option<GameType>,
+        new_pool: Option<GameType>,
     },
 
     // ========================================================================
-    // Queue Messages (Legacy)
+    // Game Pool Messages (Legacy)
     // ========================================================================
-    /// Player joined the game queue.
-    QueueJoined {
+    /// Player joined the game pool.
+    PoolJoined {
         position: i32,
-        total_in_queue: i32,
+        total_in_pool: i32,
         game_id: String,
     },
 
-    /// Queue position updated.
-    QueueUpdate {
+    /// Pool position updated.
+    PoolUpdate {
         position: i32,
-        total_in_queue: i32,
+        total_in_pool: i32,
         game_id: String,
     },
 
-    /// Left the queue.
-    QueueLeft,
+    /// Left the pool.
+    PoolLeft,
 
     // ========================================================================
     // Admin Messages
@@ -519,8 +512,7 @@ impl ServerMessage {
             Self::PlayerLeft { .. } => "player_left",
             Self::PlayerReconnected { .. } => "player_reconnected",
             Self::PlayerDisconnected { .. } => "player_disconnected",
-            Self::PlayerReadyChanged { .. } => "player_ready_changed",
-            Self::PlayerQueueChanged { .. } => "player_queue_changed",
+            Self::PlayerPoolChanged { .. } => "player_pool_changed",
             Self::WordScored { .. } => "word_scored",
             Self::TurnChanged { .. } => "turn_changed",
             Self::TurnPassed { .. } => "turn_passed",
@@ -541,9 +533,9 @@ impl ServerMessage {
             Self::RematchCountdownUpdate { .. } => "rematch_countdown_update",
             Self::PlayerLeftRematch { .. } => "player_left_rematch",
             Self::RematchStarting { .. } => "rematch_starting",
-            Self::QueueJoined { .. } => "queue_joined",
-            Self::QueueUpdate { .. } => "queue_update",
-            Self::QueueLeft => "queue_left",
+            Self::PoolJoined { .. } => "pool_joined",
+            Self::PoolUpdate { .. } => "pool_update",
+            Self::PoolLeft => "pool_left",
             Self::AdminGamesList { .. } => "admin_games_list",
             Self::AdminGameDeleted { .. } => "admin_game_deleted",
             Self::GameStateUpdate { .. } => "game_state",
@@ -573,7 +565,7 @@ impl ServerMessage {
                     state: TimerVoteState::Idle,
                     ..
                 }
-                | Self::PlayerQueueChanged { .. }
+                | Self::PlayerPoolChanged { .. }
                 | Self::TurnTimerStarted { .. }
                 | Self::TurnTimerExpired { .. }
         )
@@ -688,7 +680,7 @@ mod tests {
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
-                current_queue: None,
+                current_game_pool: None,
                 active_game_id: None,
                 spectate_game_id: None,
             },
@@ -716,7 +708,7 @@ mod tests {
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
-                current_queue: None,
+                current_game_pool: None,
                 active_game_id: None,
                 spectate_game_id: None,
             }
@@ -754,15 +746,15 @@ mod tests {
 
     #[test]
     fn test_player_queue_changed_serialization() {
-        let msg = ServerMessage::PlayerQueueChanged {
+        let msg = ServerMessage::PlayerPoolChanged {
             player_id: 123,
-            old_queue: Some(GameType::Open),
-            new_queue: Some(GameType::Adventure),
+            old_pool: Some(GameType::Open),
+            new_pool: Some(GameType::Adventure),
         };
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains(r#""type":"player_queue_changed""#));
+        assert!(json.contains(r#""type":"player_pool_changed""#));
         assert!(json.contains(r#""player_id":"123""#));
-        assert!(json.contains(r#""old_queue":"open""#));
-        assert!(json.contains(r#""new_queue":"adventure""#));
+        assert!(json.contains(r#""old_pool":"open""#));
+        assert!(json.contains(r#""new_pool":"adventure""#));
     }
 }
