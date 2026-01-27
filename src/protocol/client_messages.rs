@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{GameMode, GameType, Position};
+use super::types::{GameConfig, GameMode, GameType, Position};
 
 /// Messages sent from client to server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +117,11 @@ pub enum ClientMessage {
     /// - Must be in a lobby
     /// - 1-6 connected players
     /// - No game already in progress
-    StartGame,
+    StartGame {
+        /// Optional game configuration
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        config: Option<GameConfig>,
+    },
 
     // ========================================================================
     // Game Action Messages (only valid when Playing)
@@ -285,7 +289,7 @@ impl ClientMessage {
             Self::JoinGamePool { .. } => "join_game_pool",
             Self::LeaveGamePool => "leave_game_pool",
             Self::CreateGame { .. } => "create_game",
-            Self::StartGame => "start_game",
+            Self::StartGame { .. } => "start_game",
             Self::SubmitWord { .. } => "submit_word",
             Self::PassTurn { .. } => "pass_turn",
             Self::ShuffleBoard { .. } => "shuffle_board",
@@ -315,7 +319,7 @@ impl ClientMessage {
             Self::LeaveLobby
                 | Self::JoinGamePool { .. }
                 | Self::LeaveGamePool
-                | Self::StartGame
+                | Self::StartGame { .. }
                 | Self::SubmitWord { .. }
                 | Self::PassTurn { .. }
                 | Self::ShuffleBoard { .. }
@@ -430,14 +434,17 @@ mod tests {
     #[test]
     fn test_message_type() {
         assert_eq!(ClientMessage::Heartbeat.message_type(), "heartbeat");
-        assert_eq!(ClientMessage::StartGame.message_type(), "start_game");
+        assert_eq!(
+            ClientMessage::StartGame { config: None }.message_type(),
+            "start_game"
+        );
     }
 
     #[test]
     fn test_requires_lobby() {
         assert!(!ClientMessage::Heartbeat.requires_lobby());
         assert!(!ClientMessage::CreateCustomLobby.requires_lobby());
-        assert!(ClientMessage::StartGame.requires_lobby());
+        assert!(ClientMessage::StartGame { config: None }.requires_lobby());
     }
 
     #[test]
@@ -457,5 +464,64 @@ mod tests {
             positions: vec![]
         }
         .requires_turn());
+    }
+
+    #[test]
+    fn test_start_game_serialization_without_config() {
+        // Test with config: None - should skip serializing the config field
+        let msg = ClientMessage::StartGame { config: None };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert_eq!(json, r#"{"type":"start_game"}"#);
+    }
+
+    #[test]
+    fn test_start_game_serialization_with_default_config() {
+        // Test with default config (regenerate_board_each_round: false)
+        let msg = ClientMessage::StartGame {
+            config: Some(GameConfig::default()),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"start_game""#));
+        assert!(json.contains(r#""config":{"regenerate_board_each_round":false}"#));
+    }
+
+    #[test]
+    fn test_start_game_serialization_with_custom_config() {
+        // Test with custom config (regenerate_board_each_round: true)
+        let msg = ClientMessage::StartGame {
+            config: Some(GameConfig {
+                regenerate_board_each_round: true,
+            }),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"start_game""#));
+        assert!(json.contains(r#""config":{"regenerate_board_each_round":true}"#));
+    }
+
+    #[test]
+    fn test_start_game_deserialization_without_config() {
+        // Test deserializing without config field - should default to None
+        let json = r#"{"type":"start_game"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::StartGame { config } => {
+                assert!(config.is_none());
+            }
+            _ => panic!("Wrong message type"),
+        }
+    }
+
+    #[test]
+    fn test_start_game_deserialization_with_config() {
+        // Test deserializing with config field
+        let json = r#"{"type":"start_game","config":{"regenerate_board_each_round":true}}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::StartGame { config } => {
+                assert!(config.is_some());
+                assert!(config.unwrap().regenerate_board_each_round);
+            }
+            _ => panic!("Wrong message type"),
+        }
     }
 }

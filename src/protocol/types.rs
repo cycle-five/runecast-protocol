@@ -541,6 +541,21 @@ impl std::fmt::Display for ErrorCode {
     }
 }
 
+// ============================================================================
+// Game Configuration Types
+// ============================================================================
+
+/// Configuration options for starting a new game.
+///
+/// These options customize game behavior for a single game session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GameConfig {
+    /// If true, regenerate the entire board at the start of each round.
+    /// Default is false (board persists across rounds).
+    #[serde(default)]
+    pub regenerate_board_each_round: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -666,5 +681,46 @@ mod tests {
         assert!(json.contains(r#""players":[{"user_id":"1""#));
         assert!(json.contains(r#""spectators":[{"user_id":"2""#));
         assert!(json.contains(r#""current_turn":"1""#));
+    }
+
+    #[test]
+    fn test_game_config_default() {
+        let config = GameConfig::default();
+        assert!(!config.regenerate_board_each_round);
+    }
+
+    #[test]
+    fn test_game_config_serialization() {
+        // Test with default value (false)
+        let config = GameConfig {
+            regenerate_board_each_round: false,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(json, r#"{"regenerate_board_each_round":false}"#);
+
+        // Test with true value
+        let config = GameConfig {
+            regenerate_board_each_round: true,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(json, r#"{"regenerate_board_each_round":true}"#);
+    }
+
+    #[test]
+    fn test_game_config_deserialization() {
+        // Test deserializing with explicit false
+        let json = r#"{"regenerate_board_each_round":false}"#;
+        let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.regenerate_board_each_round);
+
+        // Test deserializing with explicit true
+        let json = r#"{"regenerate_board_each_round":true}"#;
+        let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert!(config.regenerate_board_each_round);
+
+        // Test deserializing with missing field (should use default)
+        let json = r#"{}"#;
+        let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.regenerate_board_each_round);
     }
 }

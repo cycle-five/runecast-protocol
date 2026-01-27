@@ -41,9 +41,10 @@ pub use protocol::{
     envelope::{Envelope, MaybeEnveloped},
     server_messages::ServerMessage,
     types::{
-        AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot, GameState, GameSummary,
-        Grid, GridCell, LobbyChange, LobbyGameInfo, LobbyGamePlayerInfo, LobbyPlayerInfo,
-        LobbyType, Multiplier, PlayerInfo, Position, ScoreInfo, SpectatorInfo, TimerVoteState,
+        AdminGameInfo, ErrorCode, GameChange, GameConfig, GamePlayerInfo, GameSnapshot, GameState,
+        GameSummary, Grid, GridCell, LobbyChange, LobbyGameInfo, LobbyGamePlayerInfo,
+        LobbyPlayerInfo, LobbyType, Multiplier, PlayerInfo, Position, ScoreInfo, SpectatorInfo,
+        TimerVoteState,
     },
     LobbySnapshot,
 };
