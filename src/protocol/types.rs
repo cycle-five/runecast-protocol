@@ -541,6 +541,21 @@ impl std::fmt::Display for ErrorCode {
     }
 }
 
+// ============================================================================
+// Game Configuration Types
+// ============================================================================
+
+/// Configuration options for starting a new game.
+///
+/// These options customize game behavior for a single game session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GameConfig {
+    /// If true, regenerate the entire board at the start of each round.
+    /// Default is false (board persists across rounds).
+    #[serde(default)]
+    pub regenerate_board_each_round: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

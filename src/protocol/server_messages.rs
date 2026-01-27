@@ -230,6 +230,10 @@ pub enum ServerMessage {
         game_id: String,
         round: u8,
         max_rounds: u8,
+        /// New grid if board was regenerated at the start of this round.
+        /// Only present when the game is configured with `regenerate_board_each_round: true`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        new_grid: Option<Grid>,
     },
 
     /// Board was shuffled.

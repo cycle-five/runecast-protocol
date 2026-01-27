@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{GameMode, GameType, Position};
+use super::types::{GameConfig, GameMode, GameType, Position};
 
 /// Messages sent from client to server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +117,11 @@ pub enum ClientMessage {
     /// - Must be in a lobby
     /// - 1-6 connected players
     /// - No game already in progress
-    StartGame,
+    StartGame {
+        /// Optional game configuration
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        config: Option<GameConfig>,
+    },
 
     // ========================================================================
     // Game Action Messages (only valid when Playing)
@@ -285,7 +289,7 @@ impl ClientMessage {
             Self::JoinGamePool { .. } => "join_game_pool",
             Self::LeaveGamePool => "leave_game_pool",
             Self::CreateGame { .. } => "create_game",
-            Self::StartGame => "start_game",
+            Self::StartGame { .. } => "start_game",
             Self::SubmitWord { .. } => "submit_word",
             Self::PassTurn { .. } => "pass_turn",
             Self::ShuffleBoard { .. } => "shuffle_board",
@@ -315,7 +319,7 @@ impl ClientMessage {
             Self::LeaveLobby
                 | Self::JoinGamePool { .. }
                 | Self::LeaveGamePool
-                | Self::StartGame
+                | Self::StartGame { .. }
                 | Self::SubmitWord { .. }
                 | Self::PassTurn { .. }
                 | Self::ShuffleBoard { .. }
@@ -430,14 +434,17 @@ mod tests {
     #[test]
     fn test_message_type() {
         assert_eq!(ClientMessage::Heartbeat.message_type(), "heartbeat");
-        assert_eq!(ClientMessage::StartGame.message_type(), "start_game");
+        assert_eq!(
+            ClientMessage::StartGame { config: None }.message_type(),
+            "start_game"
+        );
     }
 
     #[test]
     fn test_requires_lobby() {
         assert!(!ClientMessage::Heartbeat.requires_lobby());
         assert!(!ClientMessage::CreateCustomLobby.requires_lobby());
-        assert!(ClientMessage::StartGame.requires_lobby());
+        assert!(ClientMessage::StartGame { config: None }.requires_lobby());
     }
 
     #[test]
