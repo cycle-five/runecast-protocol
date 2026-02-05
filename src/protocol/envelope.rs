@@ -77,8 +77,7 @@ impl<T> Envelope<T> {
         use std::time::{SystemTime, UNIX_EPOCH};
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|d| u64::try_from(d.as_millis()).unwrap_or(0))
-            .unwrap_or(0)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(0))
     }
 }
 
