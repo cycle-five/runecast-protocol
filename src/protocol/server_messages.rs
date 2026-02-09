@@ -821,7 +821,7 @@ mod tests {
         // Verify type field
         assert!(json.contains(r#""type":"debug_state_response""#));
         
-        // Verify ID fields are serialized as strings (not numbers)
+        // Verify ID fields are serialized as numbers
         assert!(json.contains(r#""user_id":987654321"#));
         assert!(json.contains(r#""lobby_player_ids":[111,222,333]"#));
         assert!(json.contains(r#""session_player_ids":[111,222]"#));
