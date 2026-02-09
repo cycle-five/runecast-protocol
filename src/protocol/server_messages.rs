@@ -16,9 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::GameType;
 
 use super::types::{
-    AdminGameInfo, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot, Grid, LobbyChange,
-    LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, RematchCountdownState, ScoreInfo,
-    SpectatorInfo, TimerVoteState,
+    AdminGameInfo, DebugBackendGameState, DebugHandlerGameState, DebugLobbyState,
+    DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot,
+    Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo,
+    RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -448,6 +449,19 @@ pub enum ServerMessage {
     },
 
     // ========================================================================
+    // Debug Messages
+    // ========================================================================
+    /// Debug state response with player context diagnostics.
+    DebugStateResponse {
+        timestamp: String,
+        player: DebugPlayerInfo,
+        websocket_context: DebugWebsocketContext,
+        lobby_state: Option<DebugLobbyState>,
+        backend_game_state: Option<DebugBackendGameState>,
+        handler_game_state: Option<DebugHandlerGameState>,
+    },
+
+    // ========================================================================
     // Error Messages
     // ========================================================================
     /// Error response.
@@ -544,6 +558,7 @@ impl ServerMessage {
             Self::AdminGameDeleted { .. } => "admin_game_deleted",
             Self::GameStateUpdate { .. } => "game_state",
             Self::LobbyStateUpdate { .. } => "lobby_state",
+            Self::DebugStateResponse { .. } => "debug_state_response",
 
             Self::Error { .. } => "error",
         }
@@ -572,6 +587,7 @@ impl ServerMessage {
                 | Self::PlayerPoolChanged { .. }
                 | Self::TurnTimerStarted { .. }
                 | Self::TurnTimerExpired { .. }
+                | Self::DebugStateResponse { .. }
         )
     }
 }

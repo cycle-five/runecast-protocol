@@ -556,6 +556,74 @@ pub struct GameConfig {
     pub regenerate_board_each_round: bool,
 }
 
+// ============================================================================
+// Debug State Types (for diagnostics)
+// ============================================================================
+
+/// Player info in debug state response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DebugPlayerInfo {
+    pub user_id: i64,
+    pub username: String,
+}
+
+/// WebSocket connection context in debug state response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DebugWebsocketContext {
+    pub lobby_id: Option<String>,
+    pub game_id: Option<String>,
+    pub is_spectating: bool,
+}
+
+/// Lobby state in debug state response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DebugLobbyState {
+    Found {
+        lobby_id: String,
+        player_in_lobby: bool,
+        lobby_player_ids: Vec<i64>,
+        active_game_id: Option<String>,
+    },
+    Error {
+        error: String,
+    },
+}
+
+/// Backend game state in debug state response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DebugBackendGameState {
+    Found {
+        game_id: String,
+        player_in_session_players: bool,
+        spectator_in_session: bool,
+        session_player_ids: Vec<i64>,
+        session_spectator_ids: Vec<i64>,
+        lobby_id: String,
+    },
+    Error {
+        error: String,
+    },
+}
+
+/// Handler game state in debug state response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DebugHandlerGameState {
+    Found {
+        game_id: String,
+        player_in_handler_game: bool,
+        handler_player_ids: Vec<i64>,
+        current_turn_index: usize,
+        round: u8,
+        state: String,
+    },
+    Error {
+        error: String,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -719,7 +787,7 @@ mod tests {
         assert!(config.regenerate_board_each_round);
 
         // Test deserializing with missing field (should use default)
-        let json = r#"{}"#;
+        let json = r"{}";
         let config: GameConfig = serde_json::from_str(json).unwrap();
         assert!(!config.regenerate_board_each_round);
     }

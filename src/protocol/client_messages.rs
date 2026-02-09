@@ -54,6 +54,12 @@ pub enum ClientMessage {
     /// Server responds with `LobbySnapshot` and optionally `GameSnapshot`.
     RequestSync,
 
+    /// Request debug state information for diagnosing context issues.
+    ///
+    /// Returns detailed information about the player's current state
+    /// in the WebSocket handler, lobby, and game systems.
+    DebugState,
+
     // ========================================================================
     // Lobby Messages
     // ========================================================================
@@ -282,6 +288,7 @@ impl ClientMessage {
             Self::Heartbeat => "heartbeat",
             Self::Ack { .. } => "ack",
             Self::RequestSync => "request_sync",
+            Self::DebugState => "debug_state",
             Self::JoinChannelLobby { .. } => "join_channel_lobby",
             Self::CreateCustomLobby => "create_custom_lobby",
             Self::JoinCustomLobby { .. } => "join_custom_lobby",
