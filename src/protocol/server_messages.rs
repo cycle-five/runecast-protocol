@@ -777,4 +777,171 @@ mod tests {
         assert!(json.contains(r#""old_pool":"open""#));
         assert!(json.contains(r#""new_pool":"adventure""#));
     }
+
+    #[test]
+    fn test_debug_state_response_serialization() {
+        let msg = ServerMessage::DebugStateResponse {
+            timestamp: "2024-01-01T12:00:00Z".to_string(),
+            player: DebugPlayerInfo {
+                user_id: 987654321,
+                username: "debug_user".to_string(),
+            },
+            websocket_context: DebugWebsocketContext {
+                lobby_id: Some("lobby123".to_string()),
+                game_id: Some("game456".to_string()),
+                is_spectating: false,
+            },
+            lobby_state: Some(DebugLobbyState::Found {
+                lobby_id: "lobby123".to_string(),
+                player_in_lobby: true,
+                lobby_player_ids: vec![111, 222, 333],
+                active_game_id: Some("game456".to_string()),
+            }),
+            backend_game_state: Some(DebugBackendGameState::Found {
+                game_id: "game456".to_string(),
+                player_in_session_players: true,
+                spectator_in_session: false,
+                session_player_ids: vec![111, 222],
+                session_spectator_ids: vec![],
+                lobby_id: "lobby123".to_string(),
+            }),
+            handler_game_state: Some(DebugHandlerGameState::Found {
+                game_id: "game456".to_string(),
+                player_in_handler_game: true,
+                handler_player_ids: vec![111, 222],
+                current_turn_index: 0,
+                round: 1,
+                state: "in_progress".to_string(),
+            }),
+        };
+
+        // Test serialization
+        let json = serde_json::to_string(&msg).unwrap();
+        
+        // Verify type field
+        assert!(json.contains(r#""type":"debug_state_response""#));
+        
+        // Verify ID fields are serialized as numbers
+        assert!(json.contains(r#""user_id":987654321"#));
+        assert!(json.contains(r#""lobby_player_ids":[111,222,333]"#));
+        assert!(json.contains(r#""session_player_ids":[111,222]"#));
+        assert!(json.contains(r#""handler_player_ids":[111,222]"#));
+        
+        // Verify other key fields
+        assert!(json.contains(r#""timestamp":"2024-01-01T12:00:00Z""#));
+        assert!(json.contains(r#""username":"debug_user""#));
+        assert!(json.contains(r#""lobby_id":"lobby123""#));
+        assert!(json.contains(r#""game_id":"game456""#));
+        assert!(json.contains(r#""is_spectating":false"#));
+        assert!(json.contains(r#""player_in_lobby":true"#));
+        
+        // Test deserialization (round-trip)
+        let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            ServerMessage::DebugStateResponse {
+                timestamp,
+                player,
+                websocket_context,
+                lobby_state,
+                backend_game_state,
+                handler_game_state,
+            } => {
+                assert_eq!(timestamp, "2024-01-01T12:00:00Z");
+                assert_eq!(player.user_id, 987654321);
+                assert_eq!(player.username, "debug_user");
+                assert_eq!(websocket_context.lobby_id, Some("lobby123".to_string()));
+                assert_eq!(websocket_context.game_id, Some("game456".to_string()));
+                assert!(!websocket_context.is_spectating);
+                assert!(lobby_state.is_some());
+                assert!(backend_game_state.is_some());
+                assert!(handler_game_state.is_some());
+            }
+            _ => panic!("Expected DebugStateResponse message"),
+        }
+    }
+
+    #[test]
+    fn test_debug_state_response_with_errors() {
+        // Test with error variants in debug states
+        let msg = ServerMessage::DebugStateResponse {
+            timestamp: "2024-01-01T12:00:00Z".to_string(),
+            player: DebugPlayerInfo {
+                user_id: 123,
+                username: "test".to_string(),
+            },
+            websocket_context: DebugWebsocketContext {
+                lobby_id: None,
+                game_id: None,
+                is_spectating: false,
+            },
+            lobby_state: Some(DebugLobbyState::Error {
+                error: "Lobby not found".to_string(),
+            }),
+            backend_game_state: Some(DebugBackendGameState::Error {
+                error: "Game not found".to_string(),
+            }),
+            handler_game_state: Some(DebugHandlerGameState::Error {
+                error: "Handler not found".to_string(),
+            }),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        
+        // Verify error messages are included
+        assert!(json.contains(r#""error":"Lobby not found""#));
+        assert!(json.contains(r#""error":"Game not found""#));
+        assert!(json.contains(r#""error":"Handler not found""#));
+        
+        // Round-trip test
+        let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, ServerMessage::DebugStateResponse { .. }));
+    }
+
+    #[test]
+    fn test_debug_state_response_minimal() {
+        // Test with None values for optional fields
+        let msg = ServerMessage::DebugStateResponse {
+            timestamp: "2024-01-01T12:00:00Z".to_string(),
+            player: DebugPlayerInfo {
+                user_id: 456,
+                username: "minimal_user".to_string(),
+            },
+            websocket_context: DebugWebsocketContext {
+                lobby_id: None,
+                game_id: None,
+                is_spectating: true,
+            },
+            lobby_state: None,
+            backend_game_state: None,
+            handler_game_state: None,
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        
+        // Verify type field
+        assert!(json.contains(r#""type":"debug_state_response""#));
+        
+        // Verify required fields
+        assert!(json.contains(r#""user_id":456"#));
+        assert!(json.contains(r#""username":"minimal_user""#));
+        assert!(json.contains(r#""is_spectating":true"#));
+        
+        // Round-trip test
+        let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            ServerMessage::DebugStateResponse {
+                player,
+                lobby_state,
+                backend_game_state,
+                handler_game_state,
+                ..
+            } => {
+                assert_eq!(player.user_id, 456);
+                assert!(lobby_state.is_none());
+                assert!(backend_game_state.is_none());
+                assert!(handler_game_state.is_none());
+            }
+            _ => panic!("Expected DebugStateResponse message"),
+        }
+    }
 }
