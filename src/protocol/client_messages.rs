@@ -489,7 +489,8 @@ mod tests {
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"start_game""#));
-        assert!(json.contains(r#""config":{"regenerate_board_each_round":false}"#));
+        assert!(json.contains(r#""regenerate_board_each_round":false"#));
+        assert!(json.contains(r#""grid_size":5"#));
     }
 
     #[test]
@@ -498,11 +499,12 @@ mod tests {
         let msg = ClientMessage::StartGame {
             config: Some(GameConfig {
                 regenerate_board_each_round: true,
+                grid_size: 5,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"start_game""#));
-        assert!(json.contains(r#""config":{"regenerate_board_each_round":true}"#));
+        assert!(json.contains(r#""regenerate_board_each_round":true"#));
     }
 
     #[test]
