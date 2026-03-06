@@ -548,12 +548,30 @@ impl std::fmt::Display for ErrorCode {
 /// Configuration options for starting a new game.
 ///
 /// These options customize game behavior for a single game session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
     /// If true, regenerate the entire board at the start of each round.
     /// Default is false (board persists across rounds).
     #[serde(default)]
     pub regenerate_board_each_round: bool,
+
+    /// Grid size (4 or 5). Determines which dice set is used.
+    /// Default is 5 (standard 5x5 Big Boggle-style).
+    #[serde(default = "default_grid_size")]
+    pub grid_size: u8,
+}
+
+fn default_grid_size() -> u8 {
+    5
+}
+
+impl Default for GameConfig {
+    fn default() -> Self {
+        Self {
+            regenerate_board_each_round: false,
+            grid_size: default_grid_size(),
+        }
+    }
 }
 
 // ============================================================================
@@ -762,16 +780,20 @@ mod tests {
         // Test with default value (false)
         let config = GameConfig {
             regenerate_board_each_round: false,
+            grid_size: 5,
         };
         let json = serde_json::to_string(&config).unwrap();
-        assert_eq!(json, r#"{"regenerate_board_each_round":false}"#);
+        assert!(json.contains(r#""regenerate_board_each_round":false"#));
+        assert!(json.contains(r#""grid_size":5"#));
 
-        // Test with true value
+        // Test with true value and 4x4 grid
         let config = GameConfig {
             regenerate_board_each_round: true,
+            grid_size: 4,
         };
         let json = serde_json::to_string(&config).unwrap();
-        assert_eq!(json, r#"{"regenerate_board_each_round":true}"#);
+        assert!(json.contains(r#""regenerate_board_each_round":true"#));
+        assert!(json.contains(r#""grid_size":4"#));
     }
 
     #[test]
@@ -780,6 +802,7 @@ mod tests {
         let json = r#"{"regenerate_board_each_round":false}"#;
         let config: GameConfig = serde_json::from_str(json).unwrap();
         assert!(!config.regenerate_board_each_round);
+        assert_eq!(config.grid_size, 5, "grid_size should default to 5");
 
         // Test deserializing with explicit true
         let json = r#"{"regenerate_board_each_round":true}"#;
@@ -789,6 +812,13 @@ mod tests {
         // Test deserializing with missing field (should use default)
         let json = r"{}";
         let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.regenerate_board_each_round);
+        assert_eq!(config.grid_size, 5);
+
+        // Test deserializing with grid_size: 4
+        let json = r#"{"grid_size":4}"#;
+        let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.grid_size, 4);
         assert!(!config.regenerate_board_each_round);
     }
 }
