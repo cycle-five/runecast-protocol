@@ -500,6 +500,8 @@ mod tests {
             config: Some(GameConfig {
                 regenerate_board_each_round: true,
                 grid_size: 5,
+                adventure_level: None,
+                level_targets: None,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();

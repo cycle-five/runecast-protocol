@@ -559,6 +559,18 @@ pub struct GameConfig {
     /// Default is 5 (standard 5x5 Big Boggle-style).
     #[serde(default = "default_grid_size")]
     pub grid_size: u8,
+
+    /// Adventure level ID (1..=50). `Some` signals this session is an
+    /// Adventure Mode run; the server pins bot difficulty, grid size, and
+    /// target thresholds from the level manifest. `None` = normal session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adventure_level: Option<u32>,
+
+    /// Score thresholds for 1/2/3-star completion of the current Adventure
+    /// level. Sent from server → client at session start so the UI can
+    /// render target chips. Only present when `adventure_level.is_some()`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level_targets: Option<LevelTargets>,
 }
 
 fn default_grid_size() -> u8 {
@@ -570,8 +582,21 @@ impl Default for GameConfig {
         Self {
             regenerate_board_each_round: false,
             grid_size: default_grid_size(),
+            adventure_level: None,
+            level_targets: None,
         }
     }
+}
+
+/// Per-level score thresholds for Adventure Mode star awards.
+///
+/// Hitting `one_star` completes the level; `two_star` and `three_star`
+/// are progressive bonuses. Stars are awarded server-side at session end.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LevelTargets {
+    pub one_star: i32,
+    pub two_star: i32,
+    pub three_star: i32,
 }
 
 // ============================================================================
@@ -781,6 +806,8 @@ mod tests {
         let config = GameConfig {
             regenerate_board_each_round: false,
             grid_size: 5,
+            adventure_level: None,
+            level_targets: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
@@ -790,6 +817,8 @@ mod tests {
         let config = GameConfig {
             regenerate_board_each_round: true,
             grid_size: 4,
+            adventure_level: None,
+            level_targets: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));

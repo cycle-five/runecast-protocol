@@ -159,6 +159,26 @@ pub enum ServerMessage {
     /// Game was cancelled (not enough players, host left, etc.).
     GameCancelled { game_id: String, reason: String },
 
+    /// Adventure Mode level ended. Sent after `GameOver` for sessions that
+    /// had `adventure_level.is_some()` in their config. The client uses
+    /// this to render the level-complete modal; the server has already
+    /// upserted the row in `adventure_progress` by the time this is sent.
+    AdventureLevelResult {
+        /// Which level was played (1..=50).
+        level: u32,
+        /// Human player's final score for this run.
+        score: i32,
+        /// Stars awarded (0..=3). 0 = target not hit; 1+ = hit one_star/two_star/three_star.
+        stars: u8,
+        /// True iff `score` exceeded the prior `high_score` for this user + level.
+        personal_best: bool,
+        /// If this run unlocked a new level, the newly-unlocked level id.
+        /// `None` if no new level was unlocked (level was already completed
+        /// or was the campaign finale).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        unlocked_level: Option<u32>,
+    },
+
     // ========================================================================
     // Game Event Messages
     // ========================================================================
@@ -526,6 +546,7 @@ impl ServerMessage {
             Self::GameDelta { .. } => "game_delta",
             Self::GameOver { .. } => "game_over",
             Self::GameCancelled { .. } => "game_cancelled",
+            Self::AdventureLevelResult { .. } => "adventure_level_result",
             Self::PlayerJoined { .. } => "player_joined",
             Self::PlayerLeft { .. } => "player_left",
             Self::PlayerReconnected { .. } => "player_reconnected",
