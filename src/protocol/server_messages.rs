@@ -18,7 +18,7 @@ use crate::protocol::GameType;
 use super::types::{
     AdminGameInfo, DebugBackendGameState, DebugHandlerGameState, DebugLobbyState,
     DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot,
-    Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo,
+    Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, Position,
     RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
@@ -182,6 +182,25 @@ pub enum ServerMessage {
         /// modal without fetching progress.
         #[serde(skip_serializing_if = "Option::is_none")]
         duration_ms: Option<i64>,
+    },
+
+    /// Adventure Mode random event (bomb / snake / UFO). Broadcast by
+    /// the event scheduler when a roll succeeds at round change.
+    /// `affected_positions` is the set of grid cells the client should
+    /// animate; `new_grid` is the post-effect board so the client can
+    /// swap in the updated tiles atomically with the animation.
+    AdventureEvent {
+        game_id: String,
+        /// `"bomb"` | `"snake"` | `"ufo"`. String rather than a nested
+        /// enum so older clients gracefully ignore unknown kinds.
+        kind: String,
+        affected_positions: Vec<Position>,
+        /// Full post-effect grid. Clients apply this as an authoritative
+        /// snapshot — no delta needed.
+        new_grid: Grid,
+        /// Short human-readable label for the event, already localized
+        /// server-side. Rendered in a brief toast alongside the animation.
+        label: String,
     },
 
     // ========================================================================
@@ -552,6 +571,7 @@ impl ServerMessage {
             Self::GameOver { .. } => "game_over",
             Self::GameCancelled { .. } => "game_cancelled",
             Self::AdventureLevelResult { .. } => "adventure_level_result",
+            Self::AdventureEvent { .. } => "adventure_event",
             Self::PlayerJoined { .. } => "player_joined",
             Self::PlayerLeft { .. } => "player_left",
             Self::PlayerReconnected { .. } => "player_reconnected",
