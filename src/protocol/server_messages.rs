@@ -177,6 +177,11 @@ pub enum ServerMessage {
         /// or was the campaign finale).
         #[serde(skip_serializing_if = "Option::is_none")]
         unlocked_level: Option<u32>,
+        /// This run's duration in milliseconds (from game creation to
+        /// game_over). Lets the client render "Time: 2:34" in the result
+        /// modal without fetching progress.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<i64>,
     },
 
     // ========================================================================
