@@ -34,6 +34,13 @@ pub struct GridCell {
     pub multiplier: Option<Multiplier>,
     #[serde(default)]
     pub has_gem: bool,
+    /// True when this cell is a "hole" — occupies its position in the
+    /// layout but can't be selected as part of a word path. Used by
+    /// Adventure Mode levels that want asymmetric playable regions.
+    /// Hole cells have no letter contribution and are skipped by the
+    /// refill pipeline.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_hole: bool,
 }
 
 /// The 5x5 game grid.
