@@ -16,10 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::GameType;
 
 use super::types::{
-    AdminGameInfo, DebugBackendGameState, DebugHandlerGameState, DebugLobbyState,
-    DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot,
-    Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo,
-    RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
+    AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
+    DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange,
+    GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
+    PlayerInfo, Position, RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -158,6 +158,51 @@ pub enum ServerMessage {
 
     /// Game was cancelled (not enough players, host left, etc.).
     GameCancelled { game_id: String, reason: String },
+
+    /// Adventure Mode level ended. Sent after `GameOver` for sessions that
+    /// had `adventure_level.is_some()` in their config. The client uses
+    /// this to render the level-complete modal; the server has already
+    /// upserted the row in `adventure_progress` by the time this is sent.
+    AdventureLevelResult {
+        /// Which level was played (1..=50).
+        level: u32,
+        /// Human player's final score for this run.
+        score: i32,
+        /// Stars awarded (0..=3). 0 = target not hit; 1+ = hit one_star/two_star/three_star.
+        stars: u8,
+        /// True iff `score` exceeded the prior `high_score` for this user + level.
+        personal_best: bool,
+        /// If this run unlocked a new level, the newly-unlocked level id.
+        /// `None` if no new level was unlocked (level was already completed
+        /// or was the campaign finale).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        unlocked_level: Option<u32>,
+        /// This run's duration in milliseconds (from game creation to
+        /// game_over). Lets the client render "Time: 2:34" in the result
+        /// modal without fetching progress. Unsigned since durations
+        /// are non-negative, and consistent with other duration /
+        /// interval fields in the protocol (`heartbeat_interval_ms`,
+        /// `server_time`).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
+    },
+
+    /// Adventure Mode random event (bomb / snake / UFO). Broadcast by
+    /// the event scheduler when a roll succeeds at round change.
+    /// `affected_positions` is the set of grid cells the client should
+    /// animate; `new_grid` is the post-effect board so the client can
+    /// swap in the updated tiles atomically with the animation.
+    AdventureEvent {
+        game_id: String,
+        kind: AdventureEventKind,
+        affected_positions: Vec<Position>,
+        /// Full post-effect grid. Clients apply this as an authoritative
+        /// snapshot — no delta needed.
+        new_grid: Grid,
+        /// Short human-readable label for the event, already localized
+        /// server-side. Rendered in a brief toast alongside the animation.
+        label: String,
+    },
 
     // ========================================================================
     // Game Event Messages
@@ -526,6 +571,8 @@ impl ServerMessage {
             Self::GameDelta { .. } => "game_delta",
             Self::GameOver { .. } => "game_over",
             Self::GameCancelled { .. } => "game_cancelled",
+            Self::AdventureLevelResult { .. } => "adventure_level_result",
+            Self::AdventureEvent { .. } => "adventure_event",
             Self::PlayerJoined { .. } => "player_joined",
             Self::PlayerLeft { .. } => "player_left",
             Self::PlayerReconnected { .. } => "player_reconnected",
@@ -746,6 +793,164 @@ mod tests {
             ServerMessage::error(ErrorCode::NotYourTurn).message_type(),
             "error"
         );
+
+        // Adventure-mode variants — keep these assertions in sync with
+        // any future additions so the match in `message_type()` can't
+        // silently fall out of step with the enum.
+        assert_eq!(
+            ServerMessage::AdventureLevelResult {
+                level: 1,
+                score: 10,
+                stars: 1,
+                personal_best: true,
+                unlocked_level: None,
+                duration_ms: None,
+            }
+            .message_type(),
+            "adventure_level_result",
+        );
+        assert_eq!(
+            ServerMessage::AdventureEvent {
+                game_id: "g".to_string(),
+                kind: types::AdventureEventKind::Bomb,
+                affected_positions: vec![],
+                new_grid: vec![],
+                label: String::new(),
+            }
+            .message_type(),
+            "adventure_event",
+        );
+    }
+
+    #[test]
+    fn test_adventure_level_result_serialization() {
+        // With both optional fields absent: they should be omitted
+        // entirely via skip_serializing_if so older clients don't
+        // see unexpected nulls.
+        let msg = ServerMessage::AdventureLevelResult {
+            level: 3,
+            score: 120,
+            stars: 2,
+            personal_best: false,
+            unlocked_level: None,
+            duration_ms: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"adventure_level_result""#));
+        assert!(json.contains(r#""level":3"#));
+        assert!(json.contains(r#""score":120"#));
+        assert!(json.contains(r#""stars":2"#));
+        assert!(json.contains(r#""personal_best":false"#));
+        assert!(
+            !json.contains("unlocked_level"),
+            "unlocked_level should be omitted when None (got: {json})"
+        );
+        assert!(
+            !json.contains("duration_ms"),
+            "duration_ms should be omitted when None (got: {json})"
+        );
+
+        // Both optional fields present: serialize with their canonical
+        // field names. duration_ms must be a plain JSON number (u64);
+        // JSON-wise that looks the same as a signed int, but exercising
+        // the path ensures the u64 type didn't accidentally become a
+        // stringified-int somewhere.
+        let msg = ServerMessage::AdventureLevelResult {
+            level: 3,
+            score: 120,
+            stars: 3,
+            personal_best: true,
+            unlocked_level: Some(4),
+            duration_ms: Some(123_456),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""unlocked_level":4"#));
+        assert!(json.contains(r#""duration_ms":123456"#));
+
+        // Round-trip — the deserialize path needs to accept the
+        // serialized form and reproduce the same structure.
+        let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            ServerMessage::AdventureLevelResult {
+                level,
+                score,
+                stars,
+                personal_best,
+                unlocked_level,
+                duration_ms,
+            } => {
+                assert_eq!(level, 3);
+                assert_eq!(score, 120);
+                assert_eq!(stars, 3);
+                assert!(personal_best);
+                assert_eq!(unlocked_level, Some(4));
+                assert_eq!(duration_ms, Some(123_456));
+            }
+            other => panic!("expected AdventureLevelResult, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_adventure_event_serialization() {
+        let msg = ServerMessage::AdventureEvent {
+            game_id: "abc".to_string(),
+            kind: types::AdventureEventKind::Bomb,
+            affected_positions: vec![
+                types::Position { row: 1, col: 2 },
+                types::Position { row: 2, col: 2 },
+            ],
+            new_grid: vec![vec![
+                // One plain cell + one hole cell — this lets the test
+                // assert GridCell's is_hole flag on AdventureEvent's
+                // embedded Grid field stays wire-compatible.
+                types::GridCell {
+                    letter: 'A',
+                    value: 1,
+                    multiplier: None,
+                    has_gem: false,
+                    is_hole: false,
+                },
+                types::GridCell {
+                    letter: ' ',
+                    value: 0,
+                    multiplier: None,
+                    has_gem: false,
+                    is_hole: true,
+                },
+            ]],
+            label: "💣 Bomb!".to_string(),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"adventure_event""#));
+        assert!(json.contains(r#""game_id":"abc""#));
+        // kind serializes via the enum's snake_case rename.
+        assert!(json.contains(r#""kind":"bomb""#));
+        // Affected positions are plain { row, col } objects.
+        assert!(json.contains(r#""affected_positions":[{"row":1,"col":2}"#));
+        // new_grid's plain cell omits is_hole; hole cell carries it.
+        assert!(json.contains(r#""letter":"A""#));
+        assert!(json.contains(r#""is_hole":true"#));
+
+        // Round-trip so we know the type tag + enum field decode correctly.
+        let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            ServerMessage::AdventureEvent {
+                game_id,
+                kind,
+                affected_positions,
+                new_grid,
+                label,
+            } => {
+                assert_eq!(game_id, "abc");
+                assert_eq!(kind, types::AdventureEventKind::Bomb);
+                assert_eq!(affected_positions.len(), 2);
+                assert_eq!(new_grid[0].len(), 2);
+                assert!(new_grid[0][1].is_hole);
+                assert_eq!(label, "💣 Bomb!");
+            }
+            other => panic!("expected AdventureEvent, got {other:?}"),
+        }
     }
 
     #[test]
