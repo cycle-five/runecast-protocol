@@ -793,6 +793,164 @@ mod tests {
             ServerMessage::error(ErrorCode::NotYourTurn).message_type(),
             "error"
         );
+
+        // Adventure-mode variants — keep these assertions in sync with
+        // any future additions so the match in `message_type()` can't
+        // silently fall out of step with the enum.
+        assert_eq!(
+            ServerMessage::AdventureLevelResult {
+                level: 1,
+                score: 10,
+                stars: 1,
+                personal_best: true,
+                unlocked_level: None,
+                duration_ms: None,
+            }
+            .message_type(),
+            "adventure_level_result",
+        );
+        assert_eq!(
+            ServerMessage::AdventureEvent {
+                game_id: "g".to_string(),
+                kind: types::AdventureEventKind::Bomb,
+                affected_positions: vec![],
+                new_grid: vec![],
+                label: String::new(),
+            }
+            .message_type(),
+            "adventure_event",
+        );
+    }
+
+    #[test]
+    fn test_adventure_level_result_serialization() {
+        // With both optional fields absent: they should be omitted
+        // entirely via skip_serializing_if so older clients don't
+        // see unexpected nulls.
+        let msg = ServerMessage::AdventureLevelResult {
+            level: 3,
+            score: 120,
+            stars: 2,
+            personal_best: false,
+            unlocked_level: None,
+            duration_ms: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"adventure_level_result""#));
+        assert!(json.contains(r#""level":3"#));
+        assert!(json.contains(r#""score":120"#));
+        assert!(json.contains(r#""stars":2"#));
+        assert!(json.contains(r#""personal_best":false"#));
+        assert!(
+            !json.contains("unlocked_level"),
+            "unlocked_level should be omitted when None (got: {json})"
+        );
+        assert!(
+            !json.contains("duration_ms"),
+            "duration_ms should be omitted when None (got: {json})"
+        );
+
+        // Both optional fields present: serialize with their canonical
+        // field names. duration_ms must be a plain JSON number (u64);
+        // JSON-wise that looks the same as a signed int, but exercising
+        // the path ensures the u64 type didn't accidentally become a
+        // stringified-int somewhere.
+        let msg = ServerMessage::AdventureLevelResult {
+            level: 3,
+            score: 120,
+            stars: 3,
+            personal_best: true,
+            unlocked_level: Some(4),
+            duration_ms: Some(123_456),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""unlocked_level":4"#));
+        assert!(json.contains(r#""duration_ms":123456"#));
+
+        // Round-trip — the deserialize path needs to accept the
+        // serialized form and reproduce the same structure.
+        let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            ServerMessage::AdventureLevelResult {
+                level,
+                score,
+                stars,
+                personal_best,
+                unlocked_level,
+                duration_ms,
+            } => {
+                assert_eq!(level, 3);
+                assert_eq!(score, 120);
+                assert_eq!(stars, 3);
+                assert!(personal_best);
+                assert_eq!(unlocked_level, Some(4));
+                assert_eq!(duration_ms, Some(123_456));
+            }
+            other => panic!("expected AdventureLevelResult, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_adventure_event_serialization() {
+        let msg = ServerMessage::AdventureEvent {
+            game_id: "abc".to_string(),
+            kind: types::AdventureEventKind::Bomb,
+            affected_positions: vec![
+                types::Position { row: 1, col: 2 },
+                types::Position { row: 2, col: 2 },
+            ],
+            new_grid: vec![vec![
+                // One plain cell + one hole cell — this lets the test
+                // assert GridCell's is_hole flag on AdventureEvent's
+                // embedded Grid field stays wire-compatible.
+                types::GridCell {
+                    letter: 'A',
+                    value: 1,
+                    multiplier: None,
+                    has_gem: false,
+                    is_hole: false,
+                },
+                types::GridCell {
+                    letter: ' ',
+                    value: 0,
+                    multiplier: None,
+                    has_gem: false,
+                    is_hole: true,
+                },
+            ]],
+            label: "💣 Bomb!".to_string(),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"adventure_event""#));
+        assert!(json.contains(r#""game_id":"abc""#));
+        // kind serializes via the enum's snake_case rename.
+        assert!(json.contains(r#""kind":"bomb""#));
+        // Affected positions are plain { row, col } objects.
+        assert!(json.contains(r#""affected_positions":[{"row":1,"col":2}"#));
+        // new_grid's plain cell omits is_hole; hole cell carries it.
+        assert!(json.contains(r#""letter":"A""#));
+        assert!(json.contains(r#""is_hole":true"#));
+
+        // Round-trip so we know the type tag + enum field decode correctly.
+        let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            ServerMessage::AdventureEvent {
+                game_id,
+                kind,
+                affected_positions,
+                new_grid,
+                label,
+            } => {
+                assert_eq!(game_id, "abc");
+                assert_eq!(kind, types::AdventureEventKind::Bomb);
+                assert_eq!(affected_positions.len(), 2);
+                assert_eq!(new_grid[0].len(), 2);
+                assert!(new_grid[0][1].is_hole);
+                assert_eq!(label, "💣 Bomb!");
+            }
+            other => panic!("expected AdventureEvent, got {other:?}"),
+        }
     }
 
     #[test]

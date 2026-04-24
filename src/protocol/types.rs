@@ -841,6 +841,15 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
         assert!(json.contains(r#""grid_size":5"#));
+        // None-valued adventure fields are skipped on the wire.
+        assert!(
+            !json.contains("adventure_level"),
+            "adventure_level should be omitted when None"
+        );
+        assert!(
+            !json.contains("level_targets"),
+            "level_targets should be omitted when None"
+        );
 
         // Test with true value and 4x4 grid
         let config = GameConfig {
@@ -852,6 +861,24 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));
         assert!(json.contains(r#""grid_size":4"#));
+
+        // Adventure fields present should serialize with their expected names.
+        let config = GameConfig {
+            regenerate_board_each_round: false,
+            grid_size: 4,
+            adventure_level: Some(7),
+            level_targets: Some(LevelTargets {
+                one_star: 30,
+                two_star: 60,
+                three_star: 90,
+            }),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains(r#""adventure_level":7"#));
+        assert!(json.contains(r#""level_targets""#));
+        assert!(json.contains(r#""one_star":30"#));
+        assert!(json.contains(r#""two_star":60"#));
+        assert!(json.contains(r#""three_star":90"#));
     }
 
     #[test]
@@ -861,6 +888,14 @@ mod tests {
         let config: GameConfig = serde_json::from_str(json).unwrap();
         assert!(!config.regenerate_board_each_round);
         assert_eq!(config.grid_size, 5, "grid_size should default to 5");
+        assert!(
+            config.adventure_level.is_none(),
+            "adventure_level defaults to None"
+        );
+        assert!(
+            config.level_targets.is_none(),
+            "level_targets defaults to None"
+        );
 
         // Test deserializing with explicit true
         let json = r#"{"regenerate_board_each_round":true}"#;
@@ -872,11 +907,110 @@ mod tests {
         let config: GameConfig = serde_json::from_str(json).unwrap();
         assert!(!config.regenerate_board_each_round);
         assert_eq!(config.grid_size, 5);
+        assert!(config.adventure_level.is_none());
+        assert!(config.level_targets.is_none());
 
         // Test deserializing with grid_size: 4
         let json = r#"{"grid_size":4}"#;
         let config: GameConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.grid_size, 4);
         assert!(!config.regenerate_board_each_round);
+
+        // Adventure fields present should deserialize through.
+        let json = r#"{
+            "grid_size": 4,
+            "adventure_level": 12,
+            "level_targets": { "one_star": 50, "two_star": 75, "three_star": 100 }
+        }"#;
+        let config: GameConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.adventure_level, Some(12));
+        assert_eq!(
+            config.level_targets,
+            Some(LevelTargets {
+                one_star: 50,
+                two_star: 75,
+                three_star: 100
+            })
+        );
+    }
+
+    #[test]
+    fn test_level_targets_serde_round_trip() {
+        // Lock in the exact wire-level field names — renaming any of
+        // them would silently break every client that had already
+        // cached adventure progress.
+        let targets = LevelTargets {
+            one_star: 100,
+            two_star: 200,
+            three_star: 300,
+        };
+        let json = serde_json::to_value(targets).expect("LevelTargets should serialize");
+        let expected = serde_json::json!({
+            "one_star": 100,
+            "two_star": 200,
+            "three_star": 300,
+        });
+        assert_eq!(json, expected);
+
+        let round_tripped: LevelTargets =
+            serde_json::from_value(json).expect("LevelTargets should deserialize");
+        assert_eq!(round_tripped, targets);
+    }
+
+    #[test]
+    fn test_grid_cell_is_hole_wire_compat() {
+        // Default (non-hole) cells should omit `is_hole` on the wire —
+        // otherwise every existing cell in every broadcast pays the
+        // bytes and older clients see an unexpected field. Hole cells
+        // must carry the flag.
+        let plain = GridCell {
+            letter: 'A',
+            value: 1,
+            multiplier: None,
+            has_gem: false,
+            is_hole: false,
+        };
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(
+            !json.contains("is_hole"),
+            "is_hole should be omitted when false (got: {json})"
+        );
+
+        let hole = GridCell {
+            letter: ' ',
+            value: 0,
+            multiplier: None,
+            has_gem: false,
+            is_hole: true,
+        };
+        let json = serde_json::to_string(&hole).unwrap();
+        assert!(json.contains(r#""is_hole":true"#));
+
+        // Missing is_hole on the wire should deserialize to false.
+        let incoming = r#"{"letter":"B","value":3,"has_gem":false}"#;
+        let cell: GridCell = serde_json::from_str(incoming).unwrap();
+        assert!(!cell.is_hole, "is_hole should default to false when absent");
+    }
+
+    #[test]
+    fn test_adventure_event_kind_serde() {
+        // Known kinds round-trip through snake_case names.
+        let json = serde_json::to_string(&AdventureEventKind::Bomb).unwrap();
+        assert_eq!(json, r#""bomb""#);
+        assert_eq!(
+            serde_json::from_str::<AdventureEventKind>(r#""snake""#).unwrap(),
+            AdventureEventKind::Snake
+        );
+        assert_eq!(
+            serde_json::from_str::<AdventureEventKind>(r#""ufo""#).unwrap(),
+            AdventureEventKind::Ufo
+        );
+
+        // #[serde(other)] catches any future kind an older client
+        // doesn't recognize — load-bearing for forward compatibility.
+        assert_eq!(
+            serde_json::from_str::<AdventureEventKind>(r#""earthquake""#).unwrap(),
+            AdventureEventKind::Unknown
+        );
     }
 }
