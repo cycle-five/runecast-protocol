@@ -16,10 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::GameType;
 
 use super::types::{
-    AdminGameInfo, DebugBackendGameState, DebugHandlerGameState, DebugLobbyState,
-    DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GamePlayerInfo, GameSnapshot,
-    Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType, PlayerInfo, Position,
-    RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
+    AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
+    DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange,
+    GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
+    PlayerInfo, Position, RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -179,9 +179,12 @@ pub enum ServerMessage {
         unlocked_level: Option<u32>,
         /// This run's duration in milliseconds (from game creation to
         /// game_over). Lets the client render "Time: 2:34" in the result
-        /// modal without fetching progress.
+        /// modal without fetching progress. Unsigned since durations
+        /// are non-negative, and consistent with other duration /
+        /// interval fields in the protocol (`heartbeat_interval_ms`,
+        /// `server_time`).
         #[serde(skip_serializing_if = "Option::is_none")]
-        duration_ms: Option<i64>,
+        duration_ms: Option<u64>,
     },
 
     /// Adventure Mode random event (bomb / snake / UFO). Broadcast by
@@ -191,9 +194,7 @@ pub enum ServerMessage {
     /// swap in the updated tiles atomically with the animation.
     AdventureEvent {
         game_id: String,
-        /// `"bomb"` | `"snake"` | `"ufo"`. String rather than a nested
-        /// enum so older clients gracefully ignore unknown kinds.
-        kind: String,
+        kind: AdventureEventKind,
         affected_positions: Vec<Position>,
         /// Full post-effect grid. Clients apply this as an authoritative
         /// snapshot — no delta needed.

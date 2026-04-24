@@ -46,6 +46,27 @@ pub struct GridCell {
 /// The 5x5 game grid.
 pub type Grid = Vec<Vec<GridCell>>;
 
+/// Adventure Mode random-event kinds. Carried on `ServerMessage::AdventureEvent`.
+///
+/// The `Unknown` variant catches any future kind an older client doesn't
+/// recognize, so adding new kinds server-side is non-breaking. Clients
+/// matching on this enum should always handle the `Unknown` arm (e.g.
+/// by rendering a generic "Something happened!" toast).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdventureEventKind {
+    /// 3×3 blast centered on a random cell; those cells reroll.
+    Bomb,
+    /// Poisons a handful of cells for a couple of rounds.
+    Snake,
+    /// Steals all multipliers currently on the board.
+    Ufo,
+    /// Forward-compat fallback. Serde decodes any unknown kind string
+    /// to this variant via `#[serde(other)]`.
+    #[serde(other)]
+    Unknown,
+}
+
 /// Game mode variants.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
