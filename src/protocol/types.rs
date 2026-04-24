@@ -778,6 +778,7 @@ mod tests {
             game_id: "game1".to_string(),
             state: GameState::InProgress,
             grid: vec![vec![GridCell {
+                is_hole: false,
                 letter: 'A',
                 value: 1,
                 multiplier: None,
