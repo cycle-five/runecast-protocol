@@ -695,6 +695,34 @@ pub enum DebugHandlerGameState {
     },
 }
 
+/// A news/notification item as sent over the wire (server → client).
+///
+/// Mirrors the backend's `NewsItem` model but stripped of fields that
+/// shouldn't leave the server (`created_by` user id). `notification_type`
+/// is a free-form string at this layer so the server can introduce new
+/// types without forcing a protocol release — current canonical values
+/// are `"maintenance"`, `"announcement"`, `"update"`.
+///
+/// Used in [`ServerMessage::NewsAnnounced`] for live push and is shape-
+/// compatible with what `/api/news` returns, so the same UI code path
+/// can render either source.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct NewsItemPayload {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub notification_type: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 0 = popup stays until dismissed; > 0 = auto-hide after N seconds.
+    pub auto_hide_seconds: i32,
+    /// When true the frontend re-shows the popup every page load even if
+    /// the user has dismissed it (dismissal becomes session-scoped only).
+    pub refresh_on_every_login: bool,
+    /// Higher priority wins when multiple items are active.
+    pub priority: i32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

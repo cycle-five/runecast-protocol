@@ -19,7 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    PlayerInfo, Position, RematchCountdownState, ScoreInfo, SpectatorInfo, TimerVoteState,
+    NewsItemPayload, PlayerInfo, Position, RematchCountdownState, ScoreInfo, SpectatorInfo,
+    TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -507,6 +508,21 @@ pub enum ServerMessage {
     },
 
     // ========================================================================
+    // News / Maintenance Announcements
+    // ========================================================================
+    /// A news/notification item was created or activated by an admin.
+    ///
+    /// Pushed to every connected client when an admin posts a new item
+    /// via the news admin endpoints, or when an existing item is
+    /// updated in a way that should re-surface it (becoming active,
+    /// extending expires_at, etc.). Clients should treat it the same
+    /// as if they had just fetched `/api/news` and seen this entry —
+    /// in particular, maintenance items with a future `expires_at`
+    /// drive the corner-countdown toast, while announcement/update
+    /// items go through the existing full-screen overlay.
+    NewsAnnounced { item: NewsItemPayload },
+
+    // ========================================================================
     // Error Messages
     // ========================================================================
     /// Error response.
@@ -607,6 +623,8 @@ impl ServerMessage {
             Self::LobbyStateUpdate { .. } => "lobby_state",
             Self::DebugStateResponse { .. } => "debug_state_response",
 
+            Self::NewsAnnounced { .. } => "news_announced",
+
             Self::Error { .. } => "error",
         }
     }
@@ -635,6 +653,12 @@ impl ServerMessage {
                 | Self::TurnTimerStarted { .. }
                 | Self::TurnTimerExpired { .. }
                 | Self::DebugStateResponse { .. }
+                // News is re-fetched from /api/news on (re)connect, so
+                // replaying a stale announcement would either duplicate
+                // a still-active item or surface one that has since
+                // expired/been deleted. Skip replay; the HTTP fetch is
+                // authoritative.
+                | Self::NewsAnnounced { .. }
         )
     }
 }
@@ -1148,5 +1172,59 @@ mod tests {
             }
             _ => panic!("Expected DebugStateResponse message"),
         }
+    }
+
+    #[test]
+    fn test_news_announced_round_trip() {
+        let now = chrono::Utc::now();
+        let expires = now + chrono::Duration::hours(1);
+        let original = ServerMessage::NewsAnnounced {
+            item: NewsItemPayload {
+                id: "abc-123".to_string(),
+                title: "Scheduled Maintenance".to_string(),
+                message: "Servers will restart for ~5 minutes.".to_string(),
+                notification_type: "maintenance".to_string(),
+                created_at: now,
+                expires_at: Some(expires),
+                auto_hide_seconds: 0,
+                refresh_on_every_login: false,
+                priority: 100,
+            },
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        assert!(json.contains(r#""type":"news_announced""#));
+        assert!(json.contains(r#""notification_type":"maintenance""#));
+
+        let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            ServerMessage::NewsAnnounced { item } => {
+                assert_eq!(item.id, "abc-123");
+                assert_eq!(item.notification_type, "maintenance");
+                assert_eq!(item.priority, 100);
+                assert_eq!(item.expires_at, Some(expires));
+            }
+            _ => panic!("Expected NewsAnnounced"),
+        }
+    }
+
+    #[test]
+    fn test_news_announced_excluded_from_replay() {
+        // News is re-fetched from /api/news on reconnect, so replaying
+        // the original announcement would duplicate or surface stale.
+        let msg = ServerMessage::NewsAnnounced {
+            item: NewsItemPayload {
+                id: "x".to_string(),
+                title: "t".to_string(),
+                message: "m".to_string(),
+                notification_type: "announcement".to_string(),
+                created_at: chrono::Utc::now(),
+                expires_at: None,
+                auto_hide_seconds: 0,
+                refresh_on_every_login: false,
+                priority: 0,
+            },
+        };
+        assert!(!msg.should_store_for_replay());
     }
 }
