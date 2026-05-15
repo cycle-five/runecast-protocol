@@ -41,6 +41,21 @@ pub struct GridCell {
     /// refill pipeline.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_hole: bool,
+    /// True when this cell has been **poisoned** by a Snake adventure
+    /// event. Poisoned letters contribute negative value when used in
+    /// a word (sign-flipped — `value` becomes `-value` for scoring),
+    /// so players want to avoid them. Poison clears when the cell is
+    /// rerolled (word consumption or another event hitting the cell).
+    /// Adventure-only; multiplayer sessions never set this.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_poisoned: bool,
+    /// True when this cell has been **abducted** by a UFO adventure
+    /// event. Abducted cells are temporarily unselectable (mirrors
+    /// `is_hole` for path validation) and reroll back to normal on a
+    /// later round. Adventure-only; multiplayer sessions never set
+    /// this.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_abducted: bool,
 }
 
 /// The 5x5 game grid.
@@ -877,6 +892,8 @@ mod tests {
                 value: 1,
                 multiplier: None,
                 has_gem: false,
+                is_poisoned: false,
+                is_abducted: false,
             }]],
             players: vec![player],
             spectators: vec![spectator],
@@ -1042,6 +1059,8 @@ mod tests {
             multiplier: None,
             has_gem: false,
             is_hole: false,
+            is_poisoned: false,
+            is_abducted: false,
         };
         let json = serde_json::to_string(&plain).unwrap();
         assert!(
@@ -1055,6 +1074,8 @@ mod tests {
             multiplier: None,
             has_gem: false,
             is_hole: true,
+            is_poisoned: false,
+            is_abducted: false,
         };
         let json = serde_json::to_string(&hole).unwrap();
         assert!(json.contains(r#""is_hole":true"#));
@@ -1063,6 +1084,88 @@ mod tests {
         let incoming = r#"{"letter":"B","value":3,"has_gem":false}"#;
         let cell: GridCell = serde_json::from_str(incoming).unwrap();
         assert!(!cell.is_hole, "is_hole should default to false when absent");
+    }
+
+    #[test]
+    fn test_grid_cell_is_poisoned_wire_compat() {
+        // Default (non-poisoned) cells must omit `is_poisoned` on the
+        // wire so every existing cell in non-adventure (or non-snaked)
+        // broadcasts doesn't carry the field.
+        let plain = GridCell {
+            letter: 'A',
+            value: 1,
+            multiplier: None,
+            has_gem: false,
+            is_hole: false,
+            is_poisoned: false,
+            is_abducted: false,
+        };
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(
+            !json.contains("is_poisoned"),
+            "is_poisoned should be omitted when false (got: {json})"
+        );
+
+        let poisoned = GridCell {
+            letter: 'E',
+            value: 1,
+            multiplier: None,
+            has_gem: false,
+            is_hole: false,
+            is_poisoned: true,
+            is_abducted: false,
+        };
+        let json = serde_json::to_string(&poisoned).unwrap();
+        assert!(json.contains(r#""is_poisoned":true"#));
+
+        // Older client/server payloads without the field deserialize
+        // to is_poisoned=false — wire-compat with pre-v0.9.0.
+        let incoming = r#"{"letter":"B","value":3,"has_gem":false}"#;
+        let cell: GridCell = serde_json::from_str(incoming).unwrap();
+        assert!(
+            !cell.is_poisoned,
+            "is_poisoned should default to false when absent"
+        );
+    }
+
+    #[test]
+    fn test_grid_cell_is_abducted_wire_compat() {
+        // Mirrors the is_hole / is_poisoned wire-compat contract:
+        // default-false cells omit the field; abducted cells carry it.
+        let plain = GridCell {
+            letter: 'A',
+            value: 1,
+            multiplier: None,
+            has_gem: false,
+            is_hole: false,
+            is_poisoned: false,
+            is_abducted: false,
+        };
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(
+            !json.contains("is_abducted"),
+            "is_abducted should be omitted when false (got: {json})"
+        );
+
+        let abducted = GridCell {
+            letter: 'T',
+            value: 1,
+            multiplier: None,
+            has_gem: false,
+            is_hole: false,
+            is_poisoned: false,
+            is_abducted: true,
+        };
+        let json = serde_json::to_string(&abducted).unwrap();
+        assert!(json.contains(r#""is_abducted":true"#));
+
+        // Pre-v0.9.0 payloads deserialize cleanly with is_abducted=false.
+        let incoming = r#"{"letter":"B","value":3,"has_gem":false}"#;
+        let cell: GridCell = serde_json::from_str(incoming).unwrap();
+        assert!(
+            !cell.is_abducted,
+            "is_abducted should default to false when absent"
+        );
     }
 
     #[test]
