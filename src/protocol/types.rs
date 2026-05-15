@@ -695,13 +695,58 @@ pub enum DebugHandlerGameState {
     },
 }
 
+/// Type of news notification. Mirrors the canonical values the backend
+/// stores in `news.notification_type` (validated against the
+/// `ALLOWED_NOTIFICATION_TYPES` list at the API boundary).
+///
+/// `#[serde(other)]` keeps old clients functional when the server
+/// introduces a new variant — unknown values deserialize to
+/// `Unknown` instead of erroring out. Mirrors the
+/// `AdventureEventKind::Unknown` pattern already in this crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NewsNotificationType {
+    Maintenance,
+    Announcement,
+    Update,
+    /// Fallback for variants the server adds after this client was built.
+    #[serde(other)]
+    Unknown,
+}
+
+impl NewsNotificationType {
+    /// Parse a wire-string into the typed enum. Unknown / unrecognized
+    /// strings map to `Unknown` so callers don't have to handle parse
+    /// errors — backend's `validate_news_payload` already rejects
+    /// unknown values at the API boundary, so this only kicks in
+    /// defensively for forward-compat.
+    #[must_use]
+    pub fn from_wire_str(s: &str) -> Self {
+        match s {
+            "maintenance" => Self::Maintenance,
+            "announcement" => Self::Announcement,
+            "update" => Self::Update,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<&str> for NewsNotificationType {
+    fn from(s: &str) -> Self {
+        Self::from_wire_str(s)
+    }
+}
+
+impl From<&String> for NewsNotificationType {
+    fn from(s: &String) -> Self {
+        Self::from_wire_str(s.as_str())
+    }
+}
+
 /// A news/notification item as sent over the wire (server → client).
 ///
 /// Mirrors the backend's `NewsItem` model but stripped of fields that
-/// shouldn't leave the server (`created_by` user id). `notification_type`
-/// is a free-form string at this layer so the server can introduce new
-/// types without forcing a protocol release — current canonical values
-/// are `"maintenance"`, `"announcement"`, `"update"`.
+/// shouldn't leave the server (`created_by` user id).
 ///
 /// Used in [`ServerMessage::NewsAnnounced`] for live push and is shape-
 /// compatible with what `/api/news` returns, so the same UI code path
@@ -711,11 +756,11 @@ pub struct NewsItemPayload {
     pub id: String,
     pub title: String,
     pub message: String,
-    pub notification_type: String,
+    pub notification_type: NewsNotificationType,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     /// 0 = popup stays until dismissed; > 0 = auto-hide after N seconds.
-    pub auto_hide_seconds: i32,
+    pub auto_hide_seconds: u32,
     /// When true the frontend re-shows the popup every page load even if
     /// the user has dismissed it (dismissal becomes session-scoped only).
     pub refresh_on_every_login: bool,
@@ -1018,6 +1063,38 @@ mod tests {
         let incoming = r#"{"letter":"B","value":3,"has_gem":false}"#;
         let cell: GridCell = serde_json::from_str(incoming).unwrap();
         assert!(!cell.is_hole, "is_hole should default to false when absent");
+    }
+
+    #[test]
+    fn test_news_notification_type_serde() {
+        // Known variants round-trip through snake_case.
+        let json = serde_json::to_string(&NewsNotificationType::Maintenance).unwrap();
+        assert_eq!(json, r#""maintenance""#);
+        assert_eq!(
+            serde_json::from_str::<NewsNotificationType>(r#""announcement""#).unwrap(),
+            NewsNotificationType::Announcement
+        );
+
+        // #[serde(other)] catches future server-side variants — load-
+        // bearing for forward compatibility with older clients.
+        assert_eq!(
+            serde_json::from_str::<NewsNotificationType>(r#""patch_notes""#).unwrap(),
+            NewsNotificationType::Unknown
+        );
+
+        // from_wire_str / From<&str> agree with serde.
+        assert_eq!(
+            NewsNotificationType::from_wire_str("maintenance"),
+            NewsNotificationType::Maintenance
+        );
+        assert_eq!(
+            NewsNotificationType::from("update"),
+            NewsNotificationType::Update
+        );
+        assert_eq!(
+            NewsNotificationType::from_wire_str("unknown_future_type"),
+            NewsNotificationType::Unknown
+        );
     }
 
     #[test]

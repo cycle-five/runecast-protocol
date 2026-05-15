@@ -19,8 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, PlayerInfo, Position, RematchCountdownState, ScoreInfo, SpectatorInfo,
-    TimerVoteState,
+    NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState, ScoreInfo,
+    SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -1183,7 +1183,7 @@ mod tests {
                 id: "abc-123".to_string(),
                 title: "Scheduled Maintenance".to_string(),
                 message: "Servers will restart for ~5 minutes.".to_string(),
-                notification_type: "maintenance".to_string(),
+                notification_type: NewsNotificationType::Maintenance,
                 created_at: now,
                 expires_at: Some(expires),
                 auto_hide_seconds: 0,
@@ -1200,7 +1200,7 @@ mod tests {
         match parsed {
             ServerMessage::NewsAnnounced { item } => {
                 assert_eq!(item.id, "abc-123");
-                assert_eq!(item.notification_type, "maintenance");
+                assert_eq!(item.notification_type, NewsNotificationType::Maintenance);
                 assert_eq!(item.priority, 100);
                 assert_eq!(item.expires_at, Some(expires));
             }
@@ -1217,7 +1217,7 @@ mod tests {
                 id: "x".to_string(),
                 title: "t".to_string(),
                 message: "m".to_string(),
-                notification_type: "announcement".to_string(),
+                notification_type: NewsNotificationType::Announcement,
                 created_at: chrono::Utc::now(),
                 expires_at: None,
                 auto_hide_seconds: 0,
