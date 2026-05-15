@@ -933,6 +933,8 @@ mod tests {
                     multiplier: None,
                     has_gem: false,
                     is_hole: false,
+                    is_poisoned: false,
+                    is_abducted: false,
                 },
                 types::GridCell {
                     letter: ' ',
@@ -940,6 +942,8 @@ mod tests {
                     multiplier: None,
                     has_gem: false,
                     is_hole: true,
+                    is_poisoned: false,
+                    is_abducted: false,
                 },
             ]],
             label: "💣 Bomb!".to_string(),
