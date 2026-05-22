@@ -502,6 +502,9 @@ mod tests {
                 grid_size: 5,
                 adventure_level: None,
                 level_targets: None,
+                num_rounds: None,
+                bots: Vec::new(),
+                custom: None,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();

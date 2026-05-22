@@ -634,6 +634,20 @@ pub struct GameConfig {
     /// render target chips. Only present when `adventure_level.is_some()`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_targets: Option<LevelTargets>,
+
+    /// Number of rounds for a custom game. `None` = server default (5).
+    /// Honored only for custom (sandbox) games; ignored for FFA.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub num_rounds: Option<u8>,
+
+    /// Bot seats to add (custom games only). Empty for FFA.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bots: Vec<BotSpec>,
+
+    /// `Some` marks this session as a custom (unranked) sandbox game.
+    /// Mirrors `adventure_level` — both gate the same ranked-skip paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<CustomMeta>,
 }
 
 fn default_grid_size() -> u8 {
@@ -647,9 +661,18 @@ impl Default for GameConfig {
             grid_size: default_grid_size(),
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         }
     }
 }
+
+/// Marker payload for a custom (sandbox) game. Empty for now; a struct
+/// (not a bare bool) so we can carry custom metadata later without a
+/// wire break.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CustomMeta {}
 
 /// Per-level score thresholds for Adventure Mode star awards.
 ///
@@ -947,6 +970,9 @@ mod tests {
             grid_size: 5,
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
@@ -967,6 +993,9 @@ mod tests {
             grid_size: 4,
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));
@@ -982,6 +1011,9 @@ mod tests {
                 two_star: 60,
                 three_star: 90,
             }),
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""adventure_level":7"#));
@@ -1249,5 +1281,41 @@ mod tests {
             serde_json::from_str::<AdventureEventKind>(r#""earthquake""#).unwrap(),
             AdventureEventKind::Unknown
         );
+    }
+
+    #[test]
+    fn default_gameconfig_wire_unchanged() {
+        let json = serde_json::to_string(&GameConfig::default()).unwrap();
+        assert!(json.contains(r#""grid_size":5"#));
+        assert!(!json.contains("num_rounds")); // skipped when None
+        assert!(!json.contains(r#""bots""#) || json.contains(r#""bots":[]"#));
+        assert!(!json.contains("custom")); // skipped when None
+    }
+
+    #[test]
+    fn sandbox_gameconfig_round_trips() {
+        let cfg = GameConfig {
+            num_rounds: Some(7),
+            bots: vec![BotSpec { difficulty: BotDifficulty::Easy }],
+            custom: Some(CustomMeta {}),
+            grid_size: 6,
+            ..GameConfig::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: GameConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.num_rounds, Some(7));
+        assert_eq!(back.bots.len(), 1);
+        assert!(back.custom.is_some());
+        assert_eq!(back.grid_size, 6);
+    }
+
+    #[test]
+    fn legacy_gameconfig_json_still_parses() {
+        let cfg: GameConfig =
+            serde_json::from_str(r#"{"regenerate_board_each_round":true,"grid_size":4}"#).unwrap();
+        assert!(cfg.regenerate_board_each_round);
+        assert!(cfg.bots.is_empty());
+        assert!(cfg.num_rounds.is_none());
+        assert!(cfg.custom.is_none());
     }
 }
