@@ -585,6 +585,26 @@ impl std::fmt::Display for ErrorCode {
 }
 
 // ============================================================================
+// Bot Types
+// ============================================================================
+
+/// Bot difficulty on the wire. Lowercase to match the backend's
+/// `game_players.bot_difficulty` CHECK constraint (`easy|medium|hard`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BotDifficulty {
+    Easy,
+    Medium,
+    Hard,
+}
+
+/// One bot seat requested for a custom game.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BotSpec {
+    pub difficulty: BotDifficulty,
+}
+
+// ============================================================================
 // Game Configuration Types
 // ============================================================================
 
@@ -1198,6 +1218,15 @@ mod tests {
             NewsNotificationType::from_wire_str("unknown_future_type"),
             NewsNotificationType::Unknown
         );
+    }
+
+    #[test]
+    fn bot_spec_round_trips_lowercase() {
+        let spec = BotSpec { difficulty: BotDifficulty::Hard };
+        let json = serde_json::to_string(&spec).unwrap();
+        assert_eq!(json, r#"{"difficulty":"hard"}"#);
+        let back: BotSpec = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.difficulty, BotDifficulty::Hard);
     }
 
     #[test]
