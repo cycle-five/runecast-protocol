@@ -511,6 +511,7 @@ mod tests {
                 num_rounds: None,
                 bots: Vec::new(),
                 custom: None,
+                events: None,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();
