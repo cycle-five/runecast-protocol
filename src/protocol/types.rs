@@ -529,6 +529,10 @@ pub enum ErrorCode {
     NotHost,
     NotEnoughPlayers,
     TooManyPlayers,
+    /// Caller lacks the capability for an entitlement-gated action
+    /// (e.g. starting or configuring a custom sandbox game when
+    /// `sandbox_enabled` is false for them). Server-authoritative.
+    NotAuthorized,
 
     // Resource errors
     InsufficientGems,
@@ -569,6 +573,7 @@ impl ErrorCode {
             Self::NotHost => "Only the host can do this",
             Self::NotEnoughPlayers => "Not enough players",
             Self::TooManyPlayers => "Too many players",
+            Self::NotAuthorized => "You are not authorized to do this",
             Self::InsufficientGems => "Not enough gems",
             Self::TooManyRequests => "Too many requests",
             Self::MessageTooLarge => "Message too large",
