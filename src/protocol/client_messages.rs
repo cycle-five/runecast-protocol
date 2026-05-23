@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{GameConfig, GameMode, GameType, Position};
+use super::types::{AdventureEventKind, GameConfig, GameMode, GameType, Position};
 
 /// Messages sent from client to server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,6 +118,9 @@ pub enum ClientMessage {
     /// Rejected by the server if the caller is not the host or lacks the
     /// `sandbox_enabled` capability.
     SetSandboxConfig { config: GameConfig },
+
+    /// Host-only: fire a random event immediately in the current custom game.
+    TriggerAdventureEvent { kind: AdventureEventKind },
 
     /// Start a new game in the current lobby.
     ///
@@ -302,6 +305,7 @@ impl ClientMessage {
             Self::LeaveGamePool => "leave_game_pool",
             Self::CreateGame { .. } => "create_game",
             Self::SetSandboxConfig { .. } => "set_sandbox_config",
+            Self::TriggerAdventureEvent { .. } => "trigger_adventure_event",
             Self::StartGame { .. } => "start_game",
             Self::SubmitWord { .. } => "submit_word",
             Self::PassTurn { .. } => "pass_turn",
@@ -553,5 +557,15 @@ mod tests {
         assert!(json.contains(r#""type":"set_sandbox_config""#));
         let back: ClientMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(back, ClientMessage::SetSandboxConfig { .. }));
+    }
+
+    #[test]
+    fn trigger_adventure_event_round_trips() {
+        let msg = ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"trigger_adventure_event""#));
+        assert!(json.contains(r#""kind":"snake""#));
+        let back: ClientMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(back, ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake }));
     }
 }
