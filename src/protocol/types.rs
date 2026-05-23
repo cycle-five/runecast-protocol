@@ -613,6 +613,17 @@ pub struct BotSpec {
 // Game Configuration Types
 // ============================================================================
 
+/// Random-event config for a custom (sandbox) game. Absent for FFA/Adventure.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct EventConfig {
+    /// Kinds eligible to fire (ambient or fire-now). Empty = none.
+    #[serde(default)]
+    pub enabled_kinds: Vec<AdventureEventKind>,
+    /// Ambient per-turn probability one enabled kind fires (0.0–1.0).
+    #[serde(default)]
+    pub frequency: f64,
+}
+
 /// Configuration options for starting a new game.
 ///
 /// These options customize game behavior for a single game session.
@@ -653,6 +664,10 @@ pub struct GameConfig {
     /// Mirrors `adventure_level` — both gate the same ranked-skip paths.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom: Option<CustomMeta>,
+
+    /// Random-event config for custom games. `None` for FFA/Adventure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events: Option<EventConfig>,
 }
 
 fn default_grid_size() -> u8 {
@@ -669,6 +684,7 @@ impl Default for GameConfig {
             num_rounds: None,
             bots: Vec::new(),
             custom: None,
+            events: None,
         }
     }
 }
@@ -978,6 +994,7 @@ mod tests {
             num_rounds: None,
             bots: Vec::new(),
             custom: None,
+            events: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
@@ -1001,6 +1018,7 @@ mod tests {
             num_rounds: None,
             bots: Vec::new(),
             custom: None,
+            events: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));
@@ -1019,6 +1037,7 @@ mod tests {
             num_rounds: None,
             bots: Vec::new(),
             custom: None,
+            events: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""adventure_level":7"#));
@@ -1322,5 +1341,25 @@ mod tests {
         assert!(cfg.bots.is_empty());
         assert!(cfg.num_rounds.is_none());
         assert!(cfg.custom.is_none());
+    }
+
+    #[test]
+    fn event_config_round_trips() {
+        let cfg = EventConfig {
+            enabled_kinds: vec![AdventureEventKind::Bomb, AdventureEventKind::Ufo],
+            frequency: 0.5,
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: EventConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.enabled_kinds.len(), 2);
+        assert!((back.frequency - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn gameconfig_without_events_is_back_compat() {
+        let json = serde_json::to_string(&GameConfig::default()).unwrap();
+        assert!(!json.contains("events"));
+        let back: GameConfig = serde_json::from_str(&json).unwrap();
+        assert!(back.events.is_none());
     }
 }
