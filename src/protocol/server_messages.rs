@@ -685,6 +685,7 @@ impl TryFrom<serde_json::Value> for ServerMessage {
 // ============================================================================
 
 /// Complete lobby state snapshot.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbySnapshot {
     pub lobby_id: String,
@@ -703,6 +704,9 @@ pub struct LobbySnapshot {
     /// The lobby's current host (the player who controls sandbox config),
     /// if one has been assigned. Lets clients show host-only controls and a
     /// read-only mirror for non-hosts. Updated live on host transfer.
+    /// Serialized as a STRING (like every other id) so JS doesn't lose
+    /// precision on snowflake-magnitude ids (>2^53).
+    #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_id: Option<i64>,
 }
@@ -1283,5 +1287,32 @@ mod tests {
             !serde_json::to_string(&plain).unwrap().contains("host_id"),
             "host_id should be omitted when None"
         );
+    }
+
+    #[test]
+    fn lobby_snapshot_host_id_serializes_as_string_snowflake_safe() {
+        // host_id must serialize as a STRING (like every other id) so JS
+        // doesn't lose precision on snowflake-magnitude ids (>2^53). A
+        // JSON-number would round and break host detection on the client.
+        let snowflake: i64 = 123_456_789_012_345_678; // 18 digits, > 2^53
+        let snap = LobbySnapshot {
+            lobby_id: "lobby".to_string(),
+            lobby_type: LobbyType::Custom,
+            lobby_code: None,
+            players: vec![],
+            games: vec![],
+            max_players: 6,
+            sandbox_config: None,
+            host_id: Some(snowflake),
+        };
+        let json = serde_json::to_string(&snap).unwrap();
+        // Quoted = string on the wire; an unquoted number would be the bug.
+        assert!(
+            json.contains(r#""host_id":"123456789012345678""#),
+            "host_id must serialize as a quoted string, got: {json}"
+        );
+        // Exact round-trip (no precision loss).
+        let back: LobbySnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.host_id, Some(snowflake));
     }
 }
