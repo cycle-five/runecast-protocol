@@ -17,7 +17,7 @@ use crate::protocol::GameType;
 
 use super::types::{
     AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
-    DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange,
+    DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
     NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState, ScoreInfo,
     SpectatorInfo, TimerVoteState,
@@ -696,6 +696,15 @@ pub struct LobbySnapshot {
     /// Maximum players allowed
     #[serde(default = "default_max_players")]
     pub max_players: u8,
+    /// Current sandbox config for the lobby, if a host has set one.
+    /// Absent for normal (non-sandbox) lobbies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox_config: Option<GameConfig>,
+    /// The lobby's current host (the player who controls sandbox config),
+    /// if one has been assigned. Lets clients show host-only controls and a
+    /// read-only mirror for non-hosts. Updated live on host transfer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_id: Option<i64>,
 }
 
 fn default_max_players() -> u8 {
@@ -1230,5 +1239,49 @@ mod tests {
             },
         };
         assert!(!msg.should_store_for_replay());
+    }
+
+    #[test]
+    fn lobby_snapshot_carries_sandbox_config() {
+        // Build a minimal LobbySnapshot with sandbox_config set.
+        let mut snap = LobbySnapshot {
+            lobby_id: "test-lobby".to_string(),
+            lobby_type: LobbyType::Custom,
+            lobby_code: None,
+            players: vec![],
+            games: vec![],
+            max_players: 6,
+            sandbox_config: None,
+            host_id: None,
+        };
+        snap.sandbox_config = Some(GameConfig::default());
+
+        let json = serde_json::to_string(&snap).unwrap();
+        assert!(
+            json.contains("sandbox_config"),
+            "sandbox_config should be present when Some (got: {json})"
+        );
+        let back: LobbySnapshot = serde_json::from_str(&json).unwrap();
+        assert!(back.sandbox_config.is_some());
+
+        // Confirm it's omitted on the wire when None (back-compat).
+        let plain = LobbySnapshot {
+            lobby_id: "plain-lobby".to_string(),
+            lobby_type: LobbyType::Custom,
+            lobby_code: None,
+            players: vec![],
+            games: vec![],
+            max_players: 6,
+            sandbox_config: None,
+            host_id: None,
+        };
+        assert!(
+            !serde_json::to_string(&plain).unwrap().contains("sandbox_config"),
+            "sandbox_config should be omitted when None"
+        );
+        assert!(
+            !serde_json::to_string(&plain).unwrap().contains("host_id"),
+            "host_id should be omitted when None"
+        );
     }
 }

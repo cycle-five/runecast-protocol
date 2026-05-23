@@ -114,6 +114,11 @@ pub enum ClientMessage {
     #[serde(rename = "create_game")]
     CreateGame { mode: GameMode },
 
+    /// Host-only: update the live sandbox config for the current lobby.
+    /// Rejected by the server if the caller is not the host or lacks the
+    /// `sandbox_enabled` capability.
+    SetSandboxConfig { config: GameConfig },
+
     /// Start a new game in the current lobby.
     ///
     /// By default, any player can start. Can be restricted to host only
@@ -296,6 +301,7 @@ impl ClientMessage {
             Self::JoinGamePool { .. } => "join_game_pool",
             Self::LeaveGamePool => "leave_game_pool",
             Self::CreateGame { .. } => "create_game",
+            Self::SetSandboxConfig { .. } => "set_sandbox_config",
             Self::StartGame { .. } => "start_game",
             Self::SubmitWord { .. } => "submit_word",
             Self::PassTurn { .. } => "pass_turn",
@@ -502,6 +508,9 @@ mod tests {
                 grid_size: 5,
                 adventure_level: None,
                 level_targets: None,
+                num_rounds: None,
+                bots: Vec::new(),
+                custom: None,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();
@@ -534,5 +543,14 @@ mod tests {
             }
             _ => panic!("Wrong message type"),
         }
+    }
+
+    #[test]
+    fn set_sandbox_config_round_trips() {
+        let msg = ClientMessage::SetSandboxConfig { config: GameConfig::default() };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"set_sandbox_config""#));
+        let back: ClientMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(back, ClientMessage::SetSandboxConfig { .. }));
     }
 }

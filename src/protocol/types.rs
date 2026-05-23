@@ -529,6 +529,10 @@ pub enum ErrorCode {
     NotHost,
     NotEnoughPlayers,
     TooManyPlayers,
+    /// Caller lacks the capability for an entitlement-gated action
+    /// (e.g. starting or configuring a custom sandbox game when
+    /// `sandbox_enabled` is false for them). Server-authoritative.
+    NotAuthorized,
 
     // Resource errors
     InsufficientGems,
@@ -569,6 +573,7 @@ impl ErrorCode {
             Self::NotHost => "Only the host can do this",
             Self::NotEnoughPlayers => "Not enough players",
             Self::TooManyPlayers => "Too many players",
+            Self::NotAuthorized => "You are not authorized to do this",
             Self::InsufficientGems => "Not enough gems",
             Self::TooManyRequests => "Too many requests",
             Self::MessageTooLarge => "Message too large",
@@ -582,6 +587,26 @@ impl std::fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message())
     }
+}
+
+// ============================================================================
+// Bot Types
+// ============================================================================
+
+/// Bot difficulty on the wire. Lowercase to match the backend's
+/// `game_players.bot_difficulty` CHECK constraint (`easy|medium|hard`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BotDifficulty {
+    Easy,
+    Medium,
+    Hard,
+}
+
+/// One bot seat requested for a custom game.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BotSpec {
+    pub difficulty: BotDifficulty,
 }
 
 // ============================================================================
@@ -614,6 +639,20 @@ pub struct GameConfig {
     /// render target chips. Only present when `adventure_level.is_some()`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_targets: Option<LevelTargets>,
+
+    /// Number of rounds for a custom game. `None` = server default (5).
+    /// Honored only for custom (sandbox) games; ignored for FFA.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub num_rounds: Option<u8>,
+
+    /// Bot seats to add (custom games only). Empty for FFA.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bots: Vec<BotSpec>,
+
+    /// `Some` marks this session as a custom (unranked) sandbox game.
+    /// Mirrors `adventure_level` — both gate the same ranked-skip paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<CustomMeta>,
 }
 
 fn default_grid_size() -> u8 {
@@ -627,9 +666,18 @@ impl Default for GameConfig {
             grid_size: default_grid_size(),
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         }
     }
 }
+
+/// Marker payload for a custom (sandbox) game. Empty for now; a struct
+/// (not a bare bool) so we can carry custom metadata later without a
+/// wire break.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CustomMeta {}
 
 /// Per-level score thresholds for Adventure Mode star awards.
 ///
@@ -927,6 +975,9 @@ mod tests {
             grid_size: 5,
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
@@ -947,6 +998,9 @@ mod tests {
             grid_size: 4,
             adventure_level: None,
             level_targets: None,
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));
@@ -962,6 +1016,9 @@ mod tests {
                 two_star: 60,
                 three_star: 90,
             }),
+            num_rounds: None,
+            bots: Vec::new(),
+            custom: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""adventure_level":7"#));
@@ -1201,6 +1258,15 @@ mod tests {
     }
 
     #[test]
+    fn bot_spec_round_trips_lowercase() {
+        let spec = BotSpec { difficulty: BotDifficulty::Hard };
+        let json = serde_json::to_string(&spec).unwrap();
+        assert_eq!(json, r#"{"difficulty":"hard"}"#);
+        let back: BotSpec = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.difficulty, BotDifficulty::Hard);
+    }
+
+    #[test]
     fn test_adventure_event_kind_serde() {
         // Known kinds round-trip through snake_case names.
         let json = serde_json::to_string(&AdventureEventKind::Bomb).unwrap();
@@ -1220,5 +1286,41 @@ mod tests {
             serde_json::from_str::<AdventureEventKind>(r#""earthquake""#).unwrap(),
             AdventureEventKind::Unknown
         );
+    }
+
+    #[test]
+    fn default_gameconfig_wire_unchanged() {
+        let json = serde_json::to_string(&GameConfig::default()).unwrap();
+        assert!(json.contains(r#""grid_size":5"#));
+        assert!(!json.contains("num_rounds")); // skipped when None
+        assert!(!json.contains(r#""bots""#) || json.contains(r#""bots":[]"#));
+        assert!(!json.contains("custom")); // skipped when None
+    }
+
+    #[test]
+    fn sandbox_gameconfig_round_trips() {
+        let cfg = GameConfig {
+            num_rounds: Some(7),
+            bots: vec![BotSpec { difficulty: BotDifficulty::Easy }],
+            custom: Some(CustomMeta {}),
+            grid_size: 6,
+            ..GameConfig::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: GameConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.num_rounds, Some(7));
+        assert_eq!(back.bots.len(), 1);
+        assert!(back.custom.is_some());
+        assert_eq!(back.grid_size, 6);
+    }
+
+    #[test]
+    fn legacy_gameconfig_json_still_parses() {
+        let cfg: GameConfig =
+            serde_json::from_str(r#"{"regenerate_board_each_round":true,"grid_size":4}"#).unwrap();
+        assert!(cfg.regenerate_board_each_round);
+        assert!(cfg.bots.is_empty());
+        assert!(cfg.num_rounds.is_none());
+        assert!(cfg.custom.is_none());
     }
 }
