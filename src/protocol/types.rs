@@ -119,6 +119,8 @@ pub enum GameType {
     TwoVTwo,
     /// Adventure/co-op mode
     Adventure,
+    /// Configurable unranked custom ("sandbox") game.
+    Sandbox,
 }
 
 impl std::fmt::Display for GameType {
@@ -127,6 +129,7 @@ impl std::fmt::Display for GameType {
             GameType::Open => write!(f, "open"),
             GameType::TwoVTwo => write!(f, "two_v_two"),
             GameType::Adventure => write!(f, "adventure"),
+            GameType::Sandbox => write!(f, "sandbox"),
         }
     }
 }
@@ -1361,5 +1364,15 @@ mod tests {
         assert!(!json.contains("events"));
         let back: GameConfig = serde_json::from_str(&json).unwrap();
         assert!(back.events.is_none());
+    }
+
+    #[test]
+    fn game_type_sandbox_serializes_snake_case() {
+        let gt = GameType::Sandbox;
+        let json = serde_json::to_string(&gt).unwrap();
+        assert_eq!(json, "\"sandbox\"");
+        let back: GameType = serde_json::from_str("\"sandbox\"").unwrap();
+        assert_eq!(back, GameType::Sandbox);
+        assert_eq!(gt.to_string(), "sandbox");
     }
 }
