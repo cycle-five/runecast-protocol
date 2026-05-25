@@ -274,6 +274,9 @@ pub struct LobbyGamePlayerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyGameInfo {
     pub game_id: String,
+    /// Which game type / pool this game belongs to (Open/Sandbox/Adventure),
+    /// so clients can distinguish concurrent games in one lobby.
+    pub game_type: GameType,
     pub current_round: i32,
     pub max_rounds: i32,
     pub players: Vec<LobbyGamePlayerInfo>,
@@ -1377,6 +1380,27 @@ mod tests {
         assert!(!json.contains("events"));
         let back: GameConfig = serde_json::from_str(&json).unwrap();
         assert!(back.events.is_none());
+    }
+
+    #[test]
+    fn lobby_game_info_game_type_round_trips() {
+        // Construct a LobbyGameInfo with game_type: Sandbox, serialize,
+        // assert the wire string, and deserialize back.
+        let info = LobbyGameInfo {
+            game_id: "game-42".to_string(),
+            game_type: GameType::Sandbox,
+            current_round: 2,
+            max_rounds: 5,
+            players: vec![],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(
+            json.contains(r#""game_type":"sandbox""#),
+            r#"expected "game_type":"sandbox" in JSON, got: {json}"#
+        );
+        let back: LobbyGameInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.game_type, GameType::Sandbox);
+        assert_eq!(back.game_id, "game-42");
     }
 
     #[test]
