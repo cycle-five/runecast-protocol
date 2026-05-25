@@ -121,6 +121,8 @@ pub enum GameType {
     Adventure,
     /// Configurable unranked custom ("sandbox") game.
     Sandbox,
+    /// Daily Challenge — solo timed run on the shared daily board.
+    Daily,
     /// Forward-compat fallback for game types this client doesn't know.
     #[serde(other)]
     Unknown,
@@ -133,6 +135,7 @@ impl std::fmt::Display for GameType {
             GameType::TwoVTwo => write!(f, "two_v_two"),
             GameType::Adventure => write!(f, "adventure"),
             GameType::Sandbox => write!(f, "sandbox"),
+            GameType::Daily => write!(f, "daily"),
             GameType::Unknown => write!(f, "unknown"),
         }
     }
@@ -1411,6 +1414,15 @@ mod tests {
         let back: GameType = serde_json::from_str("\"sandbox\"").unwrap();
         assert_eq!(back, GameType::Sandbox);
         assert_eq!(gt.to_string(), "sandbox");
+    }
+
+    #[test]
+    fn game_type_daily_serde_roundtrip() {
+        let j = serde_json::to_string(&GameType::Daily).unwrap();
+        assert_eq!(j, "\"daily\"");
+        let back: GameType = serde_json::from_str("\"daily\"").unwrap();
+        assert!(matches!(back, GameType::Daily));
+        assert_eq!(GameType::Daily.to_string(), "daily");
     }
 
     #[test]
