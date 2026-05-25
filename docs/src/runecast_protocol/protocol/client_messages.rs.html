@@ -552,21 +552,30 @@
 <a href=#552 id=552 data-nosnippet>552</a>
 <a href=#553 id=553 data-nosnippet>553</a>    <span class="attr">#[test]
 <a href=#554 id=554 data-nosnippet>554</a>    </span><span class="kw">fn </span>set_sandbox_config_round_trips() {
-<a href=#555 id=555 data-nosnippet>555</a>        <span class="kw">let </span>msg = ClientMessage::SetSandboxConfig { config: GameConfig::default() };
-<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>msg).unwrap();
-<a href=#557 id=557 data-nosnippet>557</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""type":"set_sandbox_config""#</span>));
-<a href=#558 id=558 data-nosnippet>558</a>        <span class="kw">let </span>back: ClientMessage = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
-<a href=#559 id=559 data-nosnippet>559</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(back, ClientMessage::SetSandboxConfig { .. }));
-<a href=#560 id=560 data-nosnippet>560</a>    }
-<a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a>    <span class="attr">#[test]
-<a href=#563 id=563 data-nosnippet>563</a>    </span><span class="kw">fn </span>trigger_adventure_event_round_trips() {
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">let </span>msg = ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake };
-<a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>msg).unwrap();
-<a href=#566 id=566 data-nosnippet>566</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""type":"trigger_adventure_event""#</span>));
-<a href=#567 id=567 data-nosnippet>567</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""kind":"snake""#</span>));
-<a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">let </span>back: ClientMessage = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
-<a href=#569 id=569 data-nosnippet>569</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(back, ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake }));
-<a href=#570 id=570 data-nosnippet>570</a>    }
-<a href=#571 id=571 data-nosnippet>571</a>}
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="kw">let </span>msg = ClientMessage::SetSandboxConfig {
+<a href=#556 id=556 data-nosnippet>556</a>            config: GameConfig::default(),
+<a href=#557 id=557 data-nosnippet>557</a>        };
+<a href=#558 id=558 data-nosnippet>558</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>msg).unwrap();
+<a href=#559 id=559 data-nosnippet>559</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""type":"set_sandbox_config""#</span>));
+<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">let </span>back: ClientMessage = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
+<a href=#561 id=561 data-nosnippet>561</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(back, ClientMessage::SetSandboxConfig { .. }));
+<a href=#562 id=562 data-nosnippet>562</a>    }
+<a href=#563 id=563 data-nosnippet>563</a>
+<a href=#564 id=564 data-nosnippet>564</a>    <span class="attr">#[test]
+<a href=#565 id=565 data-nosnippet>565</a>    </span><span class="kw">fn </span>trigger_adventure_event_round_trips() {
+<a href=#566 id=566 data-nosnippet>566</a>        <span class="kw">let </span>msg = ClientMessage::TriggerAdventureEvent {
+<a href=#567 id=567 data-nosnippet>567</a>            kind: AdventureEventKind::Snake,
+<a href=#568 id=568 data-nosnippet>568</a>        };
+<a href=#569 id=569 data-nosnippet>569</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>msg).unwrap();
+<a href=#570 id=570 data-nosnippet>570</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""type":"trigger_adventure_event""#</span>));
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="macro">assert!</span>(json.contains(<span class="string">r#""kind":"snake""#</span>));
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="kw">let </span>back: ClientMessage = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
+<a href=#573 id=573 data-nosnippet>573</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#574 id=574 data-nosnippet>574</a>            back,
+<a href=#575 id=575 data-nosnippet>575</a>            ClientMessage::TriggerAdventureEvent {
+<a href=#576 id=576 data-nosnippet>576</a>                kind: AdventureEventKind::Snake
+<a href=#577 id=577 data-nosnippet>577</a>            }
+<a href=#578 id=578 data-nosnippet>578</a>        ));
+<a href=#579 id=579 data-nosnippet>579</a>    }
+<a href=#580 id=580 data-nosnippet>580</a>}
 </code></pre></div></section></main></body></html>
