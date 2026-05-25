@@ -194,6 +194,7 @@ pub mod compat {
             .unwrap_or_default(),
             your_player: None,
             timer_expiration_time: None,
+            custom: None,
         })
     }
 
