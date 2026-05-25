@@ -195,6 +195,7 @@ pub mod compat {
             your_player: None,
             timer_expiration_time: None,
             custom: None,
+            time_remaining_ms: None,
         })
     }
 

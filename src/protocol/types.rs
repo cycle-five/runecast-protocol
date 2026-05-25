@@ -314,6 +314,11 @@ pub struct GameSnapshot {
     /// `GameStarted.custom`, so the unranked badge survives reconnect/spectate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom: Option<CustomMeta>,
+    /// Server-authoritative time left in a Daily Challenge run, in milliseconds.
+    /// Mirrors `GameStarted.time_remaining_ms` so a daily run that recovers via
+    /// the snapshot/reconnect path keeps its deadline. Omitted otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_remaining_ms: Option<u64>,
 }
 
 // ============================================================================
@@ -986,6 +991,7 @@ mod tests {
             your_player: None,
             timer_expiration_time: None,
             custom: None,
+            time_remaining_ms: None,
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -1469,6 +1475,7 @@ mod tests {
             your_player: None,
             timer_expiration_time: None,
             custom: Some(CustomMeta {}),
+            time_remaining_ms: None,
         };
 
         // Serialized JSON must contain "custom"
@@ -1494,5 +1501,34 @@ mod tests {
         );
         let back_none: GameSnapshot = serde_json::from_str(&json_none).unwrap();
         assert!(back_none.custom.is_none());
+    }
+
+    #[test]
+    fn game_snapshot_time_remaining_omitted_when_none_roundtrips_when_some() {
+        let base = GameSnapshot {
+            game_id: "g".to_string(),
+            state: GameState::InProgress,
+            grid: vec![],
+            players: vec![],
+            spectators: vec![],
+            current_turn: 1,
+            round: 1,
+            max_rounds: 1,
+            used_words: vec![],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+            custom: None,
+            time_remaining_ms: None,
+        };
+        // Omitted when None.
+        let json_none = serde_json::to_string(&base).unwrap();
+        assert!(!json_none.contains("time_remaining_ms"));
+        // Present + round-trips when Some.
+        let with = GameSnapshot { time_remaining_ms: Some(45_000), ..base };
+        let json = serde_json::to_string(&with).unwrap();
+        assert!(json.contains("\"time_remaining_ms\":45000"));
+        let back: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.time_remaining_ms, Some(45_000));
     }
 }
