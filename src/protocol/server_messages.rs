@@ -136,6 +136,10 @@ pub enum ServerMessage {
         /// Omitted for FFA/Adventure (wire format unchanged).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         custom: Option<CustomMeta>,
+        /// Server-authoritative time left in the run, in milliseconds. Set for
+        /// Daily Challenge runs (incl. resumes); omitted otherwise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        time_remaining_ms: Option<u64>,
     },
 
     /// Full game state snapshot.
@@ -191,6 +195,23 @@ pub enum ServerMessage {
         /// `server_time`).
         #[serde(skip_serializing_if = "Option::is_none")]
         duration_ms: Option<u64>,
+    },
+
+    /// Daily Challenge run finished (deadline reached or player ended early).
+    /// The server has already recorded the attempt + move log by send time.
+    DailyResult {
+        /// The day's seed (deterministic from the UTC date).
+        seed: i64,
+        /// This run's final score.
+        score: i32,
+        /// The player's best score across today's attempts.
+        personal_best: i32,
+        /// 1-based rank on today's shared leaderboard.
+        rank: u32,
+        /// Attempts used so far today (incl. this one).
+        attempts_used: u8,
+        /// Max attempts today for this user (1 free, 3 premium).
+        attempts_max: u8,
     },
 
     /// Adventure Mode random event (bomb / snake / UFO). Broadcast by
@@ -593,6 +614,7 @@ impl ServerMessage {
             Self::GameOver { .. } => "game_over",
             Self::GameCancelled { .. } => "game_cancelled",
             Self::AdventureLevelResult { .. } => "adventure_level_result",
+            Self::DailyResult { .. } => "daily_result",
             Self::AdventureEvent { .. } => "adventure_event",
             Self::PlayerJoined { .. } => "player_joined",
             Self::PlayerLeft { .. } => "player_left",
@@ -930,6 +952,42 @@ mod tests {
             }
             other => panic!("expected AdventureLevelResult, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn daily_result_serializes() {
+        let msg = ServerMessage::DailyResult {
+            seed: 1_592_668_382,
+            score: 240,
+            personal_best: 240,
+            rank: 3,
+            attempts_used: 1,
+            attempts_max: 1,
+        };
+        assert_eq!(msg.message_type(), "daily_result");
+        let s = serde_json::to_string(&msg).unwrap();
+        assert!(s.contains("\"type\":\"daily_result\""));
+        assert!(s.contains("\"rank\":3"));
+        let back: ServerMessage = serde_json::from_str(&s).unwrap();
+        assert!(matches!(back, ServerMessage::DailyResult { rank: 3, .. }));
+    }
+
+    #[test]
+    fn game_started_time_remaining_optional() {
+        let msg = ServerMessage::GameStarted {
+            game_id: "g1".into(),
+            grid: vec![],
+            players: vec![],
+            your_turn_order: 0,
+            current_turn: 42,
+            round: 1,
+            max_rounds: 1,
+            turn_time_limit: None,
+            custom: None,
+            time_remaining_ms: None,
+        };
+        let s = serde_json::to_string(&msg).unwrap();
+        assert!(!s.contains("time_remaining_ms"));
     }
 
     #[test]
@@ -1277,6 +1335,7 @@ mod tests {
             max_rounds: 5,
             turn_time_limit: None,
             custom: Some(CustomMeta {}),
+            time_remaining_ms: None,
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(
@@ -1306,6 +1365,7 @@ mod tests {
             max_rounds: 5,
             turn_time_limit: None,
             custom: None,
+            time_remaining_ms: None,
         };
         let json2 = serde_json::to_string(&ffa).unwrap();
         assert!(
