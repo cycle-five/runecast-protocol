@@ -552,7 +552,9 @@ mod tests {
 
     #[test]
     fn set_sandbox_config_round_trips() {
-        let msg = ClientMessage::SetSandboxConfig { config: GameConfig::default() };
+        let msg = ClientMessage::SetSandboxConfig {
+            config: GameConfig::default(),
+        };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"set_sandbox_config""#));
         let back: ClientMessage = serde_json::from_str(&json).unwrap();
@@ -561,11 +563,18 @@ mod tests {
 
     #[test]
     fn trigger_adventure_event_round_trips() {
-        let msg = ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake };
+        let msg = ClientMessage::TriggerAdventureEvent {
+            kind: AdventureEventKind::Snake,
+        };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"trigger_adventure_event""#));
         assert!(json.contains(r#""kind":"snake""#));
         let back: ClientMessage = serde_json::from_str(&json).unwrap();
-        assert!(matches!(back, ClientMessage::TriggerAdventureEvent { kind: AdventureEventKind::Snake }));
+        assert!(matches!(
+            back,
+            ClientMessage::TriggerAdventureEvent {
+                kind: AdventureEventKind::Snake
+            }
+        ));
     }
 }

@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::GameType;
 
 use super::types::{
-    AdminGameInfo, AdventureEventKind, DebugBackendGameState, DebugHandlerGameState,
+    AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
     NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState, ScoreInfo,
@@ -131,6 +131,11 @@ pub enum ServerMessage {
         /// Turn time limit in seconds (if configured)
         #[serde(skip_serializing_if = "Option::is_none")]
         turn_time_limit: Option<u32>,
+        /// `Some` marks this as an unranked custom (sandbox) game so every
+        /// participant — not just the host — can render the unranked badge.
+        /// Omitted for FFA/Adventure (wire format unchanged).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        custom: Option<CustomMeta>,
     },
 
     /// Full game state snapshot.
@@ -1063,16 +1068,16 @@ mod tests {
 
         // Test serialization
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify type field
         assert!(json.contains(r#""type":"debug_state_response""#));
-        
+
         // Verify ID fields are serialized as numbers
         assert!(json.contains(r#""user_id":987654321"#));
         assert!(json.contains(r#""lobby_player_ids":[111,222,333]"#));
         assert!(json.contains(r#""session_player_ids":[111,222]"#));
         assert!(json.contains(r#""handler_player_ids":[111,222]"#));
-        
+
         // Verify other key fields
         assert!(json.contains(r#""timestamp":"2024-01-01T12:00:00Z""#));
         assert!(json.contains(r#""username":"debug_user""#));
@@ -1080,7 +1085,7 @@ mod tests {
         assert!(json.contains(r#""game_id":"game456""#));
         assert!(json.contains(r#""is_spectating":false"#));
         assert!(json.contains(r#""player_in_lobby":true"#));
-        
+
         // Test deserialization (round-trip)
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
         match deserialized {
@@ -1132,15 +1137,18 @@ mod tests {
         };
 
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify error messages are included
         assert!(json.contains(r#""error":"Lobby not found""#));
         assert!(json.contains(r#""error":"Game not found""#));
         assert!(json.contains(r#""error":"Handler not found""#));
-        
+
         // Round-trip test
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, ServerMessage::DebugStateResponse { .. }));
+        assert!(matches!(
+            deserialized,
+            ServerMessage::DebugStateResponse { .. }
+        ));
     }
 
     #[test]
@@ -1163,15 +1171,15 @@ mod tests {
         };
 
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify type field
         assert!(json.contains(r#""type":"debug_state_response""#));
-        
+
         // Verify required fields
         assert!(json.contains(r#""user_id":456"#));
         assert!(json.contains(r#""username":"minimal_user""#));
         assert!(json.contains(r#""is_spectating":true"#));
-        
+
         // Round-trip test
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
         match deserialized {
@@ -1246,6 +1254,67 @@ mod tests {
     }
 
     #[test]
+    fn game_started_custom_marker_roundtrips_and_omits_when_none() {
+        use crate::protocol::types::CustomMeta;
+
+        // Build a GameStarted with custom: Some(CustomMeta {})
+        let msg = ServerMessage::GameStarted {
+            game_id: "game-sandbox-1".to_string(),
+            grid: vec![],
+            players: vec![types::GamePlayerInfo {
+                user_id: 111_222_333_444_555_666,
+                username: "Player1".to_string(),
+                avatar_url: None,
+                turn_order: 0,
+                score: 0,
+                gems: 0,
+                is_connected: true,
+                team: None,
+            }],
+            your_turn_order: 0,
+            current_turn: 111_222_333_444_555_666,
+            round: 1,
+            max_rounds: 5,
+            turn_time_limit: None,
+            custom: Some(CustomMeta {}),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(
+            json.contains("\"custom\""),
+            "custom should serialize when Some (got: {json})"
+        );
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert!(
+            matches!(
+                back,
+                ServerMessage::GameStarted {
+                    custom: Some(_),
+                    ..
+                }
+            ),
+            "custom should deserialize as Some"
+        );
+
+        // Same shape but custom: None — field must be absent on the wire
+        let ffa = ServerMessage::GameStarted {
+            game_id: "game-ffa-1".to_string(),
+            grid: vec![],
+            players: vec![],
+            your_turn_order: 0,
+            current_turn: 111_222_333_444_555_666,
+            round: 1,
+            max_rounds: 5,
+            turn_time_limit: None,
+            custom: None,
+        };
+        let json2 = serde_json::to_string(&ffa).unwrap();
+        assert!(
+            !json2.contains("\"custom\""),
+            "custom should be omitted when None (got: {json2})"
+        );
+    }
+
+    #[test]
     fn lobby_snapshot_carries_sandbox_config() {
         // Build a minimal LobbySnapshot with sandbox_config set.
         let mut snap = LobbySnapshot {
@@ -1280,7 +1349,9 @@ mod tests {
             host_id: None,
         };
         assert!(
-            !serde_json::to_string(&plain).unwrap().contains("sandbox_config"),
+            !serde_json::to_string(&plain)
+                .unwrap()
+                .contains("sandbox_config"),
             "sandbox_config should be omitted when None"
         );
         assert!(

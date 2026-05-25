@@ -119,6 +119,11 @@ pub enum GameType {
     TwoVTwo,
     /// Adventure/co-op mode
     Adventure,
+    /// Configurable unranked custom ("sandbox") game.
+    Sandbox,
+    /// Forward-compat fallback for game types this client doesn't know.
+    #[serde(other)]
+    Unknown,
 }
 
 impl std::fmt::Display for GameType {
@@ -127,6 +132,8 @@ impl std::fmt::Display for GameType {
             GameType::Open => write!(f, "open"),
             GameType::TwoVTwo => write!(f, "two_v_two"),
             GameType::Adventure => write!(f, "adventure"),
+            GameType::Sandbox => write!(f, "sandbox"),
+            GameType::Unknown => write!(f, "unknown"),
         }
     }
 }
@@ -297,6 +304,10 @@ pub struct GameSnapshot {
     /// When the turn timer expires (if active)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timer_expiration_time: Option<chrono::DateTime<chrono::Utc>>,
+    /// `Some` marks an unranked custom (sandbox) game, mirroring
+    /// `GameStarted.custom`, so the unranked badge survives reconnect/spectate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<CustomMeta>,
 }
 
 // ============================================================================
@@ -968,6 +979,7 @@ mod tests {
             timer_vote_state: TimerVoteState::default(),
             your_player: None,
             timer_expiration_time: None,
+            custom: None,
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -1278,7 +1290,9 @@ mod tests {
 
     #[test]
     fn bot_spec_round_trips_lowercase() {
-        let spec = BotSpec { difficulty: BotDifficulty::Hard };
+        let spec = BotSpec {
+            difficulty: BotDifficulty::Hard,
+        };
         let json = serde_json::to_string(&spec).unwrap();
         assert_eq!(json, r#"{"difficulty":"hard"}"#);
         let back: BotSpec = serde_json::from_str(&json).unwrap();
@@ -1320,7 +1334,9 @@ mod tests {
     fn sandbox_gameconfig_round_trips() {
         let cfg = GameConfig {
             num_rounds: Some(7),
-            bots: vec![BotSpec { difficulty: BotDifficulty::Easy }],
+            bots: vec![BotSpec {
+                difficulty: BotDifficulty::Easy,
+            }],
             custom: Some(CustomMeta {}),
             grid_size: 6,
             ..GameConfig::default()
@@ -1361,5 +1377,86 @@ mod tests {
         assert!(!json.contains("events"));
         let back: GameConfig = serde_json::from_str(&json).unwrap();
         assert!(back.events.is_none());
+    }
+
+    #[test]
+    fn game_type_sandbox_serializes_snake_case() {
+        let gt = GameType::Sandbox;
+        let json = serde_json::to_string(&gt).unwrap();
+        assert_eq!(json, "\"sandbox\"");
+        let back: GameType = serde_json::from_str("\"sandbox\"").unwrap();
+        assert_eq!(back, GameType::Sandbox);
+        assert_eq!(gt.to_string(), "sandbox");
+    }
+
+    #[test]
+    fn game_type_unknown_is_deserialize_fallback() {
+        // Known strings still map correctly.
+        assert_eq!(
+            serde_json::from_str::<GameType>("\"open\"").unwrap(),
+            GameType::Open
+        );
+        assert_eq!(
+            serde_json::from_str::<GameType>("\"sandbox\"").unwrap(),
+            GameType::Sandbox
+        );
+        // An unknown/future string degrades to Unknown instead of erroring.
+        assert_eq!(
+            serde_json::from_str::<GameType>("\"some_future_mode\"").unwrap(),
+            GameType::Unknown
+        );
+    }
+
+    #[test]
+    fn game_snapshot_custom_field_round_trips() {
+        // Build a minimal GameSnapshot with custom = Some(CustomMeta {})
+        let player = PlayerInfo {
+            user_id: 1,
+            username: "Player1".to_string(),
+            avatar_url: None,
+            score: 0,
+            gems: 0,
+            team: None,
+            is_connected: true,
+        };
+        let base = GameSnapshot {
+            game_id: "snap1".to_string(),
+            state: GameState::InProgress,
+            grid: vec![],
+            players: vec![player],
+            spectators: vec![],
+            current_turn: 1,
+            round: 1,
+            max_rounds: 3,
+            used_words: vec![],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+            custom: Some(CustomMeta {}),
+        };
+
+        // Serialized JSON must contain "custom"
+        let json = serde_json::to_string(&base).unwrap();
+        assert!(
+            json.contains("\"custom\""),
+            "expected \"custom\" in JSON, got: {json}"
+        );
+
+        // Must round-trip to Some
+        let back: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert!(back.custom.is_some());
+
+        // None must be omitted from JSON
+        let no_custom = GameSnapshot {
+            custom: None,
+            ..base
+        };
+        let json_none = serde_json::to_string(&no_custom).unwrap();
+        assert!(
+            !json_none.contains("\"custom\""),
+            "expected no \"custom\" in JSON with None, got: {json_none}"
+        );
+        let back_none: GameSnapshot = serde_json::from_str(&json_none).unwrap();
+        assert!(back_none.custom.is_none());
     }
 }
