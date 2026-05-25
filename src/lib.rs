@@ -41,12 +41,12 @@ pub use protocol::{
     envelope::{Envelope, MaybeEnveloped},
     server_messages::ServerMessage,
     types::{
-        AdminGameInfo, AdventureEventKind, BotDifficulty, BotSpec, CustomMeta, EventConfig,
+        AdminGameInfo, AdventureEventKind, BotDifficulty, BotSpec, CustomMeta,
         DebugBackendGameState, DebugHandlerGameState, DebugLobbyState, DebugPlayerInfo,
-        DebugWebsocketContext, ErrorCode, GameChange, GameConfig, GamePlayerInfo, GameSnapshot,
-        GameState, GameSummary, Grid, GridCell, LobbyChange, LobbyGameInfo, LobbyGamePlayerInfo,
-        LobbyPlayerInfo, LobbyType, Multiplier, PlayerInfo, Position, ScoreInfo, SpectatorInfo,
-        TimerVoteState,
+        DebugWebsocketContext, ErrorCode, EventConfig, GameChange, GameConfig, GamePlayerInfo,
+        GameSnapshot, GameState, GameSummary, Grid, GridCell, LobbyChange, LobbyGameInfo,
+        LobbyGamePlayerInfo, LobbyPlayerInfo, LobbyType, Multiplier, PlayerInfo, Position,
+        ScoreInfo, SpectatorInfo, TimerVoteState,
     },
     LobbySnapshot,
 };

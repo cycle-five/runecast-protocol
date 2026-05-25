@@ -1068,16 +1068,16 @@ mod tests {
 
         // Test serialization
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify type field
         assert!(json.contains(r#""type":"debug_state_response""#));
-        
+
         // Verify ID fields are serialized as numbers
         assert!(json.contains(r#""user_id":987654321"#));
         assert!(json.contains(r#""lobby_player_ids":[111,222,333]"#));
         assert!(json.contains(r#""session_player_ids":[111,222]"#));
         assert!(json.contains(r#""handler_player_ids":[111,222]"#));
-        
+
         // Verify other key fields
         assert!(json.contains(r#""timestamp":"2024-01-01T12:00:00Z""#));
         assert!(json.contains(r#""username":"debug_user""#));
@@ -1085,7 +1085,7 @@ mod tests {
         assert!(json.contains(r#""game_id":"game456""#));
         assert!(json.contains(r#""is_spectating":false"#));
         assert!(json.contains(r#""player_in_lobby":true"#));
-        
+
         // Test deserialization (round-trip)
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
         match deserialized {
@@ -1137,15 +1137,18 @@ mod tests {
         };
 
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify error messages are included
         assert!(json.contains(r#""error":"Lobby not found""#));
         assert!(json.contains(r#""error":"Game not found""#));
         assert!(json.contains(r#""error":"Handler not found""#));
-        
+
         // Round-trip test
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, ServerMessage::DebugStateResponse { .. }));
+        assert!(matches!(
+            deserialized,
+            ServerMessage::DebugStateResponse { .. }
+        ));
     }
 
     #[test]
@@ -1168,15 +1171,15 @@ mod tests {
         };
 
         let json = serde_json::to_string(&msg).unwrap();
-        
+
         // Verify type field
         assert!(json.contains(r#""type":"debug_state_response""#));
-        
+
         // Verify required fields
         assert!(json.contains(r#""user_id":456"#));
         assert!(json.contains(r#""username":"minimal_user""#));
         assert!(json.contains(r#""is_spectating":true"#));
-        
+
         // Round-trip test
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
         match deserialized {
@@ -1282,7 +1285,13 @@ mod tests {
         );
         let back: ServerMessage = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(back, ServerMessage::GameStarted { custom: Some(_), .. }),
+            matches!(
+                back,
+                ServerMessage::GameStarted {
+                    custom: Some(_),
+                    ..
+                }
+            ),
             "custom should deserialize as Some"
         );
 
@@ -1340,7 +1349,9 @@ mod tests {
             host_id: None,
         };
         assert!(
-            !serde_json::to_string(&plain).unwrap().contains("sandbox_config"),
+            !serde_json::to_string(&plain)
+                .unwrap()
+                .contains("sandbox_config"),
             "sandbox_config should be omitted when None"
         );
         assert!(

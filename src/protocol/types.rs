@@ -1281,7 +1281,9 @@ mod tests {
 
     #[test]
     fn bot_spec_round_trips_lowercase() {
-        let spec = BotSpec { difficulty: BotDifficulty::Hard };
+        let spec = BotSpec {
+            difficulty: BotDifficulty::Hard,
+        };
         let json = serde_json::to_string(&spec).unwrap();
         assert_eq!(json, r#"{"difficulty":"hard"}"#);
         let back: BotSpec = serde_json::from_str(&json).unwrap();
@@ -1323,7 +1325,9 @@ mod tests {
     fn sandbox_gameconfig_round_trips() {
         let cfg = GameConfig {
             num_rounds: Some(7),
-            bots: vec![BotSpec { difficulty: BotDifficulty::Easy }],
+            bots: vec![BotSpec {
+                difficulty: BotDifficulty::Easy,
+            }],
             custom: Some(CustomMeta {}),
             grid_size: 6,
             ..GameConfig::default()
