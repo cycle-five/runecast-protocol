@@ -41,7 +41,7 @@ pub use protocol::{
     envelope::{Envelope, MaybeEnveloped},
     server_messages::ServerMessage,
     types::{
-        AdminGameInfo, AdventureEventKind, BotDifficulty, BotSpec, CustomMeta,
+        AdminGameInfo, AdventureEventKind, BotDifficulty, BotSpec, BuildInfo, CustomMeta,
         DebugBackendGameState, DebugHandlerGameState, DebugLobbyState, DebugPlayerInfo,
         DebugWebsocketContext, ErrorCode, EventConfig, GameChange, GameConfig, GamePlayerInfo,
         GameSnapshot, GameState, GameSummary, Grid, GridCell, LobbyChange, LobbyGameInfo,

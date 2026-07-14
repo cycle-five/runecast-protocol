@@ -869,9 +869,53 @@ pub struct NewsItemPayload {
     pub priority: i32,
 }
 
+/// Build provenance for one artifact (frontend or backend). The wire contract
+/// for the backend's `GET /api/version`, and the shape the frontend mirrors for
+/// its own baked-in info. Every field degrades to `"unknown"` (or `dirty=false`)
+/// rather than failing a build, so a build without git context still produces a
+/// well-formed value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BuildInfo {
+    /// Semver from the manifest (Cargo.toml / package.json), e.g. `"0.16.0"`.
+    pub version: String,
+    /// Short commit hash, e.g. `"a1b2c3d"`, or `"unknown"`.
+    pub git_sha: String,
+    /// `git describe --tags --always --dirty`, e.g. `"v0.16.0"`,
+    /// `"v0.16.0-3-ga1b2c3d"`, `"v0.16.0-dirty"`, or `"unknown"`.
+    pub git_describe: String,
+    /// Branch at build, e.g. `"master"`, or `"unknown"`.
+    pub git_branch: String,
+    /// True if the working tree had uncommitted changes at build.
+    pub dirty: bool,
+    /// RFC 3339 UTC build timestamp, e.g. `"2026-07-14T11:20:05Z"`, or `"unknown"`.
+    pub built_at: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn build_info_round_trips_snake_case() {
+        let info = BuildInfo {
+            version: "0.16.0".to_string(),
+            git_sha: "a1b2c3d".to_string(),
+            git_describe: "v0.16.0-2-ga1b2c3d".to_string(),
+            git_branch: "master".to_string(),
+            dirty: true,
+            built_at: "2026-07-14T11:20:05Z".to_string(),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        // snake_case field names on the wire.
+        assert!(json.contains(r#""git_sha":"a1b2c3d""#));
+        assert!(json.contains(r#""git_describe":"#));
+        assert!(json.contains(r#""git_branch":"master""#));
+        assert!(json.contains(r#""dirty":true"#));
+        assert!(json.contains(r#""built_at":"#));
+        // Round-trips back to an equal value.
+        let back: BuildInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, info);
+    }
 
     #[test]
     fn test_position_serialization() {
