@@ -196,6 +196,7 @@ pub mod compat {
             timer_expiration_time: None,
             custom: None,
             time_remaining_ms: None,
+            your_found_words: None,
         })
     }
 
