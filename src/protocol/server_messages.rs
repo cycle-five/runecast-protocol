@@ -280,6 +280,40 @@ pub enum ServerMessage {
         new_grid: Grid,
     },
 
+    /// RuneBox: a word was accepted — sent to the **submitting player only**.
+    ///
+    /// Deliberately not a reuse of [`ServerMessage::WordScored`]. That variant
+    /// carries gems and a full `new_grid`, neither of which exists in RuneBox
+    /// (the board is static and there are no gems), so both would be dead weight
+    /// re-sent on every word — and its `word` field would leak to opponents.
+    RuneBoxWordAccepted {
+        /// Game this word was played in.
+        game_id: String,
+        /// The accepted word, echoed back so the client can list it.
+        word: String,
+        /// Letters gained — equal to the word's length. Sent explicitly so the
+        /// client never re-derives scoring rules locally.
+        letters: i32,
+        /// The submitting player's new running total.
+        total_score: i32,
+    },
+
+    /// RuneBox: another player's score moved — broadcast to everyone else.
+    ///
+    /// Carries **no word, and must never gain one**. RuneBox found-sets are
+    /// independent, so a word another player found is still worth full value to
+    /// you; naming it would hand you the answer. Opponents see the score move
+    /// and nothing more.
+    RuneBoxScoreChanged {
+        /// Whose score changed.
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        player_id: i64,
+        /// Game the score belongs to.
+        game_id: String,
+        /// That player's new running total.
+        total_score: i32,
+    },
+
     /// Turn changed to another player.
     TurnChanged {
         #[serde_as(as = "serde_with::DisplayFromStr")]
@@ -622,6 +656,8 @@ impl ServerMessage {
             Self::PlayerDisconnected { .. } => "player_disconnected",
             Self::PlayerPoolChanged { .. } => "player_pool_changed",
             Self::WordScored { .. } => "word_scored",
+            Self::RuneBoxWordAccepted { .. } => "rune_box_word_accepted",
+            Self::RuneBoxScoreChanged { .. } => "rune_box_score_changed",
             Self::TurnChanged { .. } => "turn_changed",
             Self::TurnPassed { .. } => "turn_passed",
             Self::RoundChanged { .. } => "round_changed",
@@ -1445,5 +1481,84 @@ mod tests {
         // Exact round-trip (no precision loss).
         let back: LobbySnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back.host_id, Some(snowflake));
+    }
+
+    #[test]
+    fn runebox_word_accepted_round_trips() {
+        let msg = ServerMessage::RuneBoxWordAccepted {
+            game_id: "g1".to_string(),
+            word: "RUNES".to_string(),
+            letters: 5,
+            total_score: 17,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"rune_box_word_accepted""#));
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        match back {
+            ServerMessage::RuneBoxWordAccepted {
+                word,
+                letters,
+                total_score,
+                ..
+            } => {
+                assert_eq!(word, "RUNES");
+                assert_eq!(letters, 5);
+                assert_eq!(total_score, 17);
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn runebox_score_changed_carries_no_word() {
+        // THE anti-leak assertion. RuneBox found-sets are independent, so a word
+        // another player found is still worth full value to you — telling you
+        // what it was would hand you the answer. This variant having no `word`
+        // field is what enforces that, so assert on the serialized form: a
+        // future field addition fails here rather than silently shipping.
+        let msg = ServerMessage::RuneBoxScoreChanged {
+            player_id: 1_234_567_890_123_456_789,
+            game_id: "g1".to_string(),
+            total_score: 12,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(
+            !json.contains("word"),
+            "opponent broadcast leaked a word: {json}"
+        );
+        // Snowflakes ride as strings or they corrupt above 2^53 in JS.
+        assert!(
+            json.contains(r#""player_id":"1234567890123456789""#),
+            "player_id must serialize as a quoted string, got: {json}"
+        );
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        match back {
+            ServerMessage::RuneBoxScoreChanged {
+                player_id,
+                total_score,
+                ..
+            } => {
+                assert_eq!(player_id, 1_234_567_890_123_456_789);
+                assert_eq!(total_score, 12);
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn runebox_messages_have_distinct_wire_types() {
+        let accepted = ServerMessage::RuneBoxWordAccepted {
+            game_id: "g1".to_string(),
+            word: "RUNES".to_string(),
+            letters: 5,
+            total_score: 5,
+        };
+        let changed = ServerMessage::RuneBoxScoreChanged {
+            player_id: 1,
+            game_id: "g1".to_string(),
+            total_score: 5,
+        };
+        assert_eq!(accepted.message_type(), "rune_box_word_accepted");
+        assert_eq!(changed.message_type(), "rune_box_score_changed");
     }
 }

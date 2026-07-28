@@ -123,6 +123,10 @@ pub enum GameType {
     Sandbox,
     /// Daily Challenge — solo timed run on the shared daily board.
     Daily,
+    /// RuneBox — timed simultaneous word hunt. No turns, no bonus tiles and no
+    /// tile replacement; a word scores its letter count. All players work the
+    /// same static board at once for the round's duration.
+    RuneBox,
     /// Forward-compat fallback for game types this client doesn't know.
     #[serde(other)]
     Unknown,
@@ -136,6 +140,7 @@ impl std::fmt::Display for GameType {
             GameType::Adventure => write!(f, "adventure"),
             GameType::Sandbox => write!(f, "sandbox"),
             GameType::Daily => write!(f, "daily"),
+            GameType::RuneBox => write!(f, "rune_box"),
             GameType::Unknown => write!(f, "unknown"),
         }
     }
@@ -319,6 +324,15 @@ pub struct GameSnapshot {
     /// the snapshot/reconnect path keeps its deadline. Omitted otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_remaining_ms: Option<u64>,
+    /// The receiving player's own found words (RuneBox only).
+    ///
+    /// Restores the word list after a reconnect. The authoritative score
+    /// already rides on `PlayerInfo`, but without this a reconnecting player
+    /// sees an empty list and gets a confusing "already found" when
+    /// re-submitting a word they had already scored. Omitted for every other
+    /// mode, whose found-words concept is the game-global `used_words`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub your_found_words: Option<Vec<String>>,
 }
 
 // ============================================================================
@@ -1036,6 +1050,7 @@ mod tests {
             timer_expiration_time: None,
             custom: None,
             time_remaining_ms: None,
+            your_found_words: None,
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -1520,6 +1535,7 @@ mod tests {
             timer_expiration_time: None,
             custom: Some(CustomMeta {}),
             time_remaining_ms: None,
+            your_found_words: None,
         };
 
         // Serialized JSON must contain "custom"
@@ -1564,6 +1580,7 @@ mod tests {
             timer_expiration_time: None,
             custom: None,
             time_remaining_ms: None,
+            your_found_words: None,
         };
         // Omitted when None.
         let json_none = serde_json::to_string(&base).unwrap();
@@ -1574,5 +1591,55 @@ mod tests {
         assert!(json.contains("\"time_remaining_ms\":45000"));
         let back: GameSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back.time_remaining_ms, Some(45_000));
+    }
+
+    #[test]
+    fn game_type_runebox_round_trips_as_snake_case() {
+        let json = serde_json::to_string(&GameType::RuneBox).unwrap();
+        assert_eq!(json, "\"rune_box\"");
+        let back: GameType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, GameType::RuneBox);
+        assert_eq!(GameType::RuneBox.to_string(), "rune_box");
+    }
+
+    #[test]
+    fn unknown_game_type_still_degrades_rather_than_failing() {
+        // Adding a variant must not break the forward-compat fallback that lets
+        // an older client survive a newer server.
+        let back: GameType = serde_json::from_str("\"some_future_mode\"").unwrap();
+        assert_eq!(back, GameType::Unknown);
+    }
+
+    #[test]
+    fn game_snapshot_found_words_omitted_when_none_roundtrips_when_some() {
+        let base = GameSnapshot {
+            game_id: "g".to_string(),
+            state: GameState::InProgress,
+            grid: vec![],
+            players: vec![],
+            spectators: vec![],
+            current_turn: 1,
+            round: 1,
+            max_rounds: 1,
+            used_words: vec![],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+            custom: None,
+            time_remaining_ms: None,
+            your_found_words: None,
+        };
+        // Every non-RuneBox mode must serialize exactly as it did before.
+        let json_none = serde_json::to_string(&base).unwrap();
+        assert!(!json_none.contains("your_found_words"));
+
+        let with = GameSnapshot {
+            your_found_words: Some(vec!["RUNES".to_string()]),
+            ..base
+        };
+        let json = serde_json::to_string(&with).unwrap();
+        assert!(json.contains("\"your_found_words\":[\"RUNES\"]"));
+        let back: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.your_found_words, Some(vec!["RUNES".to_string()]));
     }
 }
