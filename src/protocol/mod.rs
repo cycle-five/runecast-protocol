@@ -172,6 +172,14 @@ pub mod compat {
 
         Some(GameSnapshot {
             game_id,
+            // The legacy flat format predates `game_type`, so this is normally
+            // absent and decodes to `Unknown` — the honest answer for a payload
+            // that never carried a mode. Read it anyway for the case where a
+            // newer producer still speaks the legacy shape.
+            game_type: value
+                .get("game_type")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default(),
             state,
             grid: serde_json::from_value(value.get("grid")?.clone()).ok()?,
             players: serde_json::from_value(value.get("players")?.clone()).ok()?,

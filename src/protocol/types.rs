@@ -132,6 +132,16 @@ pub enum GameType {
     Unknown,
 }
 
+/// `Unknown`, so that a payload predating a field carrying `GameType` decodes
+/// to the forward-compat variant instead of failing outright. Deliberately not
+/// `Open`: a wrong-but-plausible default is worse than an explicitly unknown
+/// one, because it reads as a real answer.
+impl Default for GameType {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 impl std::fmt::Display for GameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -268,6 +278,37 @@ pub struct ScoreInfo {
     pub score: i32,
 }
 
+/// One player's standing in a RuneBox **match**, as of the end of some round.
+///
+/// A match is several rounds; [`ScoreInfo`] describes a single round. Both are
+/// sent on `RuneBoxRoundEnded` because they answer different questions — "who
+/// won this round" and "who is winning the match".
+///
+/// Carries no word list, by construction. RuneBox found-sets are independent,
+/// so another player's words stay worth full value to you and naming them at
+/// round end would hand over the answers for a board that is still fresh in
+/// everyone's memory.
+#[serde_with::serde_as]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuneBoxStanding {
+    /// Serializes as a quoted STRING, like every snowflake on this wire — an
+    /// id above 2^53 silently loses precision as a JSON number in JS.
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub player_id: i64,
+    pub username: String,
+    /// Rounds this player has won outright.
+    ///
+    /// The deciding number in a two-player match, which is best-of-3 rather
+    /// than elimination — there is nobody to eliminate until it is over. In a
+    /// three-or-more-player match the field still counts round wins, but
+    /// elimination is what decides the match, so nothing reads it.
+    pub round_wins: u8,
+    /// This player's scores summed across every round played so far.
+    pub total_score: i32,
+    /// True once this player has been eliminated and moved to spectating.
+    pub eliminated: bool,
+}
+
 /// Player info in lobby game list (simplified).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -299,6 +340,19 @@ pub struct LobbyGameInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameSnapshot {
     pub game_id: String,
+    /// Which mode this game is, so the snapshot is self-describing.
+    ///
+    /// Without this a client has to *infer* the mode from indirect tells — the
+    /// lobby games list, the joined pool, or the presence of a per-viewer
+    /// field. That inference was load-bearing for RuneBox and it read the
+    /// wrong thing more than once, so the type rides on the snapshot itself.
+    ///
+    /// `#[serde(default)]` (→ `GameType::Unknown`) keeps a payload written
+    /// before this field existed decodable; it is NOT an invitation to omit
+    /// the field when building one. Every construction site must set it, which
+    /// is why this is a plain field and not an `Option`.
+    #[serde(default)]
+    pub game_type: GameType,
     pub state: GameState,
     pub grid: Grid,
     pub players: Vec<PlayerInfo>,
@@ -1029,6 +1083,7 @@ mod tests {
 
         let snapshot = GameSnapshot {
             game_id: "game1".to_string(),
+            game_type: GameType::Open,
             state: GameState::InProgress,
             grid: vec![vec![GridCell {
                 is_hole: false,
@@ -1522,6 +1577,7 @@ mod tests {
         };
         let base = GameSnapshot {
             game_id: "snap1".to_string(),
+            game_type: GameType::Sandbox,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![player],
@@ -1567,6 +1623,7 @@ mod tests {
     fn game_snapshot_time_remaining_omitted_when_none_roundtrips_when_some() {
         let base = GameSnapshot {
             game_id: "g".to_string(),
+            game_type: GameType::Daily,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![],
@@ -1586,7 +1643,10 @@ mod tests {
         let json_none = serde_json::to_string(&base).unwrap();
         assert!(!json_none.contains("time_remaining_ms"));
         // Present + round-trips when Some.
-        let with = GameSnapshot { time_remaining_ms: Some(45_000), ..base };
+        let with = GameSnapshot {
+            time_remaining_ms: Some(45_000),
+            ..base
+        };
         let json = serde_json::to_string(&with).unwrap();
         assert!(json.contains("\"time_remaining_ms\":45000"));
         let back: GameSnapshot = serde_json::from_str(&json).unwrap();
@@ -1614,6 +1674,7 @@ mod tests {
     fn game_snapshot_found_words_omitted_when_none_roundtrips_when_some() {
         let base = GameSnapshot {
             game_id: "g".to_string(),
+            game_type: GameType::RuneBox,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![],
@@ -1641,5 +1702,108 @@ mod tests {
         assert!(json.contains("\"your_found_words\":[\"RUNES\"]"));
         let back: GameSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back.your_found_words, Some(vec!["RUNES".to_string()]));
+    }
+
+    /// Minimal snapshot for the `game_type` tests below.
+    fn snapshot_of(game_type: GameType) -> GameSnapshot {
+        GameSnapshot {
+            game_id: "g".to_string(),
+            game_type,
+            state: GameState::InProgress,
+            grid: vec![],
+            players: vec![],
+            spectators: vec![],
+            current_turn: 1,
+            round: 1,
+            max_rounds: 1,
+            used_words: vec![],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+            custom: None,
+            time_remaining_ms: None,
+            your_found_words: None,
+        }
+    }
+
+    /// The whole point of the field: a snapshot says what mode it is, on the
+    /// wire, without the client inferring it from anything else.
+    #[test]
+    fn game_snapshot_carries_its_game_type_on_the_wire() {
+        let json = serde_json::to_string(&snapshot_of(GameType::RuneBox)).unwrap();
+        assert!(
+            json.contains("\"game_type\":\"rune_box\""),
+            "expected game_type on the snapshot, got: {json}"
+        );
+        let back: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.game_type, GameType::RuneBox);
+    }
+
+    /// `game_type` is NOT `skip_serializing_if` — unlike `custom` /
+    /// `time_remaining_ms` / `your_found_words`, it must be present for every
+    /// mode. A client that has to ask "is this field missing, or is this an old
+    /// server?" is back to inferring, which is what the field exists to end.
+    #[test]
+    fn game_type_is_emitted_for_every_mode_never_omitted() {
+        for (game_type, tag) in [
+            (GameType::Open, "open"),
+            (GameType::Sandbox, "sandbox"),
+            (GameType::Adventure, "adventure"),
+            (GameType::Daily, "daily"),
+            (GameType::RuneBox, "rune_box"),
+        ] {
+            let json = serde_json::to_string(&snapshot_of(game_type)).unwrap();
+            assert!(
+                json.contains(&format!("\"game_type\":\"{tag}\"")),
+                "{game_type:?} must serialize its game_type, got: {json}"
+            );
+        }
+    }
+
+    /// A snapshot written before this field existed must still decode — as
+    /// `Unknown`, not as a plausible-looking `Open`. Guards the `#[serde(default)]`
+    /// AND the `Default` impl: without either, this fails.
+    #[test]
+    fn snapshot_without_game_type_decodes_as_unknown() {
+        // `timer_vote_state` is spliced in rather than hand-modelled: this test
+        // is about the ABSENCE of game_type, and a hand-written literal for an
+        // unrelated type would make it fail for the wrong reason.
+        let votes = serde_json::to_string(&TimerVoteState::default()).unwrap();
+        let legacy = format!(
+            r#"{{
+            "game_id": "g",
+            "state": "in_progress",
+            "grid": [],
+            "players": [],
+            "spectators": [],
+            "current_turn": "1",
+            "round": 1,
+            "max_rounds": 1,
+            "used_words": [],
+            "timer_vote_state": {votes}
+        }}"#
+        );
+        let back: GameSnapshot =
+            serde_json::from_str(&legacy).expect("a pre-game_type snapshot must still decode");
+        assert_eq!(back.game_type, GameType::Unknown);
+    }
+
+    /// The property that makes ADDING a field to a snapshot safe, and so the
+    /// direct counterpart to the test above.
+    ///
+    /// A snapshot carrying a field the reader has never heard of must decode,
+    /// ignoring it. That is what lets a v0.18.0 server send `game_type` to a
+    /// v0.17.0 reader — and what will let the next field be added the same way.
+    /// It holds because no protocol type sets `deny_unknown_fields`; this test
+    /// is what stops someone adding it.
+    #[test]
+    fn snapshot_ignores_fields_it_does_not_know() {
+        let mut json = serde_json::to_string(&snapshot_of(GameType::Open)).unwrap();
+        // Splice in a field from a hypothetical future version.
+        json = json.replace('{', r#"{"a_field_from_the_future":[1,2,3],"#);
+
+        let back: GameSnapshot =
+            serde_json::from_str(&json).expect("an unknown field must be ignored, not rejected");
+        assert_eq!(back.game_type, GameType::Open);
     }
 }

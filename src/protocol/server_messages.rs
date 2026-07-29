@@ -19,8 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState, ScoreInfo,
-    SpectatorInfo, TimerVoteState,
+    NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState,
+    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -312,6 +312,53 @@ pub enum ServerMessage {
         game_id: String,
         /// That player's new running total.
         total_score: i32,
+    },
+
+    /// RuneBox: a **round** ended and the match continues.
+    ///
+    /// Deliberately distinct from [`ServerMessage::GameOver`], which keeps its
+    /// existing meaning: the MATCH is over, no further play. That separation is
+    /// what makes this addition non-breaking — every other mode plays exactly
+    /// one round, so it only ever sends `GameOver` and never sees this message.
+    ///
+    /// A client that receives this should present standings and wait, NOT tear
+    /// the game screen down.
+    ///
+    /// Carries no word lists, and must never gain any: the anti-leak rule that
+    /// splits [`ServerMessage::RuneBoxWordAccepted`] from
+    /// [`ServerMessage::RuneBoxScoreChanged`] applies just as much between
+    /// rounds, because an eliminated player may still be watching.
+    RuneBoxRoundEnded {
+        /// Match this round belongs to.
+        game_id: String,
+        /// Which round just finished, 1-based.
+        round: u8,
+        /// How many rounds this match will play at most. `N - 1` for an
+        /// elimination match of N players; 3 for a two-player best-of-3, which
+        /// can still finish in 2.
+        max_rounds: u8,
+        /// THIS round's scores alone, highest first. Not cumulative — the
+        /// running match total lives on `standings`.
+        round_scores: Vec<ScoreInfo>,
+        /// Players eliminated by this round's result.
+        ///
+        /// Empty in a two-player best-of-3, where nobody is eliminated until
+        /// the match itself ends. Normally one id, but the field is a list
+        /// because the rules do not forbid a round that eliminates more than
+        /// one player.
+        #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+        eliminated: Vec<i64>,
+        /// Every player's match standing after this round — survivors and
+        /// eliminated alike, so a client renders the whole picture without
+        /// accumulating round results itself. A client that missed a round
+        /// (reconnect) is therefore still correct.
+        standings: Vec<RuneBoxStanding>,
+        /// When the next round's board goes live, for the client's countdown.
+        ///
+        /// `None` means the server has not scheduled it yet; it does NOT mean
+        /// the match is over — that is `GameOver`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        next_round_starts_at: Option<chrono::DateTime<chrono::Utc>>,
     },
 
     /// Turn changed to another player.
@@ -658,6 +705,7 @@ impl ServerMessage {
             Self::WordScored { .. } => "word_scored",
             Self::RuneBoxWordAccepted { .. } => "rune_box_word_accepted",
             Self::RuneBoxScoreChanged { .. } => "rune_box_score_changed",
+            Self::RuneBoxRoundEnded { .. } => "rune_box_round_ended",
             Self::TurnChanged { .. } => "turn_changed",
             Self::TurnPassed { .. } => "turn_passed",
             Self::RoundChanged { .. } => "round_changed",
@@ -1560,5 +1608,133 @@ mod tests {
         };
         assert_eq!(accepted.message_type(), "rune_box_word_accepted");
         assert_eq!(changed.message_type(), "rune_box_score_changed");
+    }
+
+    /// A two-round match state used by the round-end tests below.
+    fn round_ended_sample(
+        next_round_starts_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> ServerMessage {
+        ServerMessage::RuneBoxRoundEnded {
+            game_id: "g1".to_string(),
+            round: 1,
+            max_rounds: 2,
+            round_scores: vec![
+                ScoreInfo {
+                    user_id: 1_234_567_890_123_456_789,
+                    username: "Ada".to_string(),
+                    score: 41,
+                },
+                ScoreInfo {
+                    user_id: 8_876_543_210_987_654_321_i64,
+                    username: "Bo".to_string(),
+                    score: 12,
+                },
+            ],
+            eliminated: vec![8_876_543_210_987_654_321_i64],
+            standings: vec![RuneBoxStanding {
+                player_id: 1_234_567_890_123_456_789,
+                username: "Ada".to_string(),
+                round_wins: 1,
+                total_score: 41,
+                eliminated: false,
+            }],
+            next_round_starts_at,
+        }
+    }
+
+    /// Round-end must be its OWN message. `GameOver` keeps meaning "the match is
+    /// over" — that is what makes this addition non-breaking for the modes that
+    /// play exactly one round and only ever send `GameOver`.
+    #[test]
+    fn round_end_is_a_distinct_message_type_from_game_over() {
+        let round_end = round_ended_sample(None);
+        let match_end = ServerMessage::GameOver {
+            game_id: "g1".to_string(),
+            final_scores: vec![],
+            winner_id: 1,
+            is_draw: false,
+        };
+        assert_eq!(round_end.message_type(), "rune_box_round_ended");
+        assert_eq!(match_end.message_type(), "game_over");
+        assert_ne!(round_end.message_type(), match_end.message_type());
+    }
+
+    #[test]
+    fn round_ended_round_trips_with_snowflakes_as_strings() {
+        let json = serde_json::to_string(&round_ended_sample(None)).unwrap();
+        assert!(json.contains(r#""type":"rune_box_round_ended""#));
+        // Every snowflake on this message rides as a quoted string, including
+        // the ones inside the `eliminated` list — a bare i64 there corrupts
+        // above 2^53 in JS exactly like a top-level one would.
+        assert!(
+            json.contains(r#""eliminated":["8876543210987654321"]"#),
+            "eliminated ids must be quoted strings, got: {json}"
+        );
+        assert!(
+            json.contains(r#""player_id":"1234567890123456789""#),
+            "standings player_id must be a quoted string, got: {json}"
+        );
+        assert!(
+            json.contains(r#""user_id":"1234567890123456789""#),
+            "round score user_id must be a quoted string, got: {json}"
+        );
+
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        match back {
+            ServerMessage::RuneBoxRoundEnded {
+                round,
+                max_rounds,
+                round_scores,
+                eliminated,
+                standings,
+                next_round_starts_at,
+                ..
+            } => {
+                assert_eq!(round, 1);
+                assert_eq!(max_rounds, 2);
+                assert_eq!(round_scores.len(), 2);
+                assert_eq!(eliminated, vec![8_876_543_210_987_654_321_i64]);
+                assert_eq!(standings[0].round_wins, 1);
+                assert_eq!(standings[0].total_score, 41);
+                assert!(!standings[0].eliminated);
+                assert!(next_round_starts_at.is_none());
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    /// The SP1 anti-leak rule does not lapse between rounds. An eliminated
+    /// player is still watching, and the survivors keep playing boards they
+    /// remember, so a round-end summary must never name anyone's words.
+    #[test]
+    fn round_ended_leaks_no_words() {
+        let json = serde_json::to_string(&round_ended_sample(None)).unwrap();
+        assert!(
+            !json.contains("word"),
+            "round-end summary leaked a word field: {json}"
+        );
+    }
+
+    /// `None` means "not scheduled yet", not "match over" — so it must be
+    /// omitted rather than serialized as an explicit null a client could
+    /// misread as a value.
+    #[test]
+    fn round_ended_omits_unscheduled_next_round() {
+        let json = serde_json::to_string(&round_ended_sample(None)).unwrap();
+        assert!(!json.contains("next_round_starts_at"), "got: {json}");
+
+        let at = chrono::DateTime::parse_from_rfc3339("2026-07-29T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let json = serde_json::to_string(&round_ended_sample(Some(at))).unwrap();
+        assert!(json.contains("next_round_starts_at"), "got: {json}");
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        match back {
+            ServerMessage::RuneBoxRoundEnded {
+                next_round_starts_at,
+                ..
+            } => assert_eq!(next_round_starts_at, Some(at)),
+            other => panic!("wrong variant: {other:?}"),
+        }
     }
 }

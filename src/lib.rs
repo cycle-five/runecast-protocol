@@ -46,7 +46,7 @@ pub use protocol::{
         DebugWebsocketContext, ErrorCode, EventConfig, GameChange, GameConfig, GamePlayerInfo,
         GameSnapshot, GameState, GameSummary, Grid, GridCell, LobbyChange, LobbyGameInfo,
         LobbyGamePlayerInfo, LobbyPlayerInfo, LobbyType, Multiplier, PlayerInfo, Position,
-        ScoreInfo, SpectatorInfo, TimerVoteState,
+        RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState,
     },
     LobbySnapshot,
 };
