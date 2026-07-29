@@ -119,6 +119,16 @@ pub enum ServerMessage {
     /// Contains initial game state for all participants.
     GameStarted {
         game_id: String,
+        /// Which mode this game is — the same field, and the same reasoning, as
+        /// [`GameSnapshot::game_type`].
+        ///
+        /// v0.18.0 put the mode on the snapshot and stopped there, which left
+        /// the JOIN path still inferring it. That is the worse half to leave
+        /// undone: a snapshot is a reconnect/spectate message, so a player who
+        /// joins normally never receives one, and every bug that has hidden in
+        /// this mode so far hid on exactly this path.
+        #[serde(default)]
+        game_type: GameType,
         grid: Grid,
         players: Vec<GamePlayerInfo>,
         /// Your turn order (0-indexed)
@@ -1059,6 +1069,7 @@ mod tests {
     #[test]
     fn game_started_time_remaining_optional() {
         let msg = ServerMessage::GameStarted {
+            game_type: GameType::Open,
             game_id: "g1".into(),
             grid: vec![],
             players: vec![],
@@ -1401,6 +1412,7 @@ mod tests {
 
         // Build a GameStarted with custom: Some(CustomMeta {})
         let msg = ServerMessage::GameStarted {
+            game_type: GameType::Open,
             game_id: "game-sandbox-1".to_string(),
             grid: vec![],
             players: vec![types::GamePlayerInfo {
@@ -1440,6 +1452,7 @@ mod tests {
 
         // Same shape but custom: None — field must be absent on the wire
         let ffa = ServerMessage::GameStarted {
+            game_type: GameType::Open,
             game_id: "game-ffa-1".to_string(),
             grid: vec![],
             players: vec![],
@@ -1608,6 +1621,40 @@ mod tests {
         };
         assert_eq!(accepted.message_type(), "rune_box_word_accepted");
         assert_eq!(changed.message_type(), "rune_box_score_changed");
+    }
+
+    /// The JOIN path must be self-describing too.
+    ///
+    /// v0.18.0 put the mode on `GameSnapshot` and stopped, which fixed the
+    /// reconnect/spectate path and left the one a normal player actually takes
+    /// still inferring. Both halves or neither.
+    #[test]
+    fn game_started_carries_its_game_type() {
+        let msg = ServerMessage::GameStarted {
+            game_type: GameType::RuneBox,
+            game_id: "g1".to_string(),
+            grid: vec![],
+            players: vec![],
+            your_turn_order: 0,
+            current_turn: 1,
+            round: 1,
+            max_rounds: 3,
+            turn_time_limit: None,
+            custom: None,
+            time_remaining_ms: Some(90_000),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(
+            json.contains(r#""game_type":"rune_box""#),
+            "game_started must name the mode, got: {json}"
+        );
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        match back {
+            ServerMessage::GameStarted { game_type, .. } => {
+                assert_eq!(game_type, GameType::RuneBox);
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
     }
 
     /// A two-round match state used by the round-end tests below.
