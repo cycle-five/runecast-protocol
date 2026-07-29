@@ -132,6 +132,16 @@ pub enum GameType {
     Unknown,
 }
 
+/// `Unknown`, so that a payload predating a field carrying `GameType` decodes
+/// to the forward-compat variant instead of failing outright. Deliberately not
+/// `Open`: a wrong-but-plausible default is worse than an explicitly unknown
+/// one, because it reads as a real answer.
+impl Default for GameType {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 impl std::fmt::Display for GameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -299,6 +309,19 @@ pub struct LobbyGameInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameSnapshot {
     pub game_id: String,
+    /// Which mode this game is, so the snapshot is self-describing.
+    ///
+    /// Without this a client has to *infer* the mode from indirect tells — the
+    /// lobby games list, the joined pool, or the presence of a per-viewer
+    /// field. That inference was load-bearing for RuneBox and it read the
+    /// wrong thing more than once, so the type rides on the snapshot itself.
+    ///
+    /// `#[serde(default)]` (→ `GameType::Unknown`) keeps a payload written
+    /// before this field existed decodable; it is NOT an invitation to omit
+    /// the field when building one. Every construction site must set it, which
+    /// is why this is a plain field and not an `Option`.
+    #[serde(default)]
+    pub game_type: GameType,
     pub state: GameState,
     pub grid: Grid,
     pub players: Vec<PlayerInfo>,
@@ -1029,6 +1052,7 @@ mod tests {
 
         let snapshot = GameSnapshot {
             game_id: "game1".to_string(),
+            game_type: GameType::Open,
             state: GameState::InProgress,
             grid: vec![vec![GridCell {
                 is_hole: false,
@@ -1522,6 +1546,7 @@ mod tests {
         };
         let base = GameSnapshot {
             game_id: "snap1".to_string(),
+            game_type: GameType::Sandbox,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![player],
@@ -1567,6 +1592,7 @@ mod tests {
     fn game_snapshot_time_remaining_omitted_when_none_roundtrips_when_some() {
         let base = GameSnapshot {
             game_id: "g".to_string(),
+            game_type: GameType::Daily,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![],
@@ -1614,6 +1640,7 @@ mod tests {
     fn game_snapshot_found_words_omitted_when_none_roundtrips_when_some() {
         let base = GameSnapshot {
             game_id: "g".to_string(),
+            game_type: GameType::RuneBox,
             state: GameState::InProgress,
             grid: vec![],
             players: vec![],
@@ -1641,5 +1668,89 @@ mod tests {
         assert!(json.contains("\"your_found_words\":[\"RUNES\"]"));
         let back: GameSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back.your_found_words, Some(vec!["RUNES".to_string()]));
+    }
+
+    /// Minimal snapshot for the `game_type` tests below.
+    fn snapshot_of(game_type: GameType) -> GameSnapshot {
+        GameSnapshot {
+            game_id: "g".to_string(),
+            game_type,
+            state: GameState::InProgress,
+            grid: vec![],
+            players: vec![],
+            spectators: vec![],
+            current_turn: 1,
+            round: 1,
+            max_rounds: 1,
+            used_words: vec![],
+            timer_vote_state: TimerVoteState::default(),
+            your_player: None,
+            timer_expiration_time: None,
+            custom: None,
+            time_remaining_ms: None,
+            your_found_words: None,
+        }
+    }
+
+    /// The whole point of the field: a snapshot says what mode it is, on the
+    /// wire, without the client inferring it from anything else.
+    #[test]
+    fn game_snapshot_carries_its_game_type_on_the_wire() {
+        let json = serde_json::to_string(&snapshot_of(GameType::RuneBox)).unwrap();
+        assert!(
+            json.contains("\"game_type\":\"rune_box\""),
+            "expected game_type on the snapshot, got: {json}"
+        );
+        let back: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.game_type, GameType::RuneBox);
+    }
+
+    /// `game_type` is NOT `skip_serializing_if` — unlike `custom` /
+    /// `time_remaining_ms` / `your_found_words`, it must be present for every
+    /// mode. A client that has to ask "is this field missing, or is this an old
+    /// server?" is back to inferring, which is what the field exists to end.
+    #[test]
+    fn game_type_is_emitted_for_every_mode_never_omitted() {
+        for (game_type, tag) in [
+            (GameType::Open, "open"),
+            (GameType::Sandbox, "sandbox"),
+            (GameType::Adventure, "adventure"),
+            (GameType::Daily, "daily"),
+            (GameType::RuneBox, "rune_box"),
+        ] {
+            let json = serde_json::to_string(&snapshot_of(game_type)).unwrap();
+            assert!(
+                json.contains(&format!("\"game_type\":\"{tag}\"")),
+                "{game_type:?} must serialize its game_type, got: {json}"
+            );
+        }
+    }
+
+    /// A snapshot written before this field existed must still decode — as
+    /// `Unknown`, not as a plausible-looking `Open`. Guards the `#[serde(default)]`
+    /// AND the `Default` impl: without either, this fails.
+    #[test]
+    fn snapshot_without_game_type_decodes_as_unknown() {
+        // `timer_vote_state` is spliced in rather than hand-modelled: this test
+        // is about the ABSENCE of game_type, and a hand-written literal for an
+        // unrelated type would make it fail for the wrong reason.
+        let votes = serde_json::to_string(&TimerVoteState::default()).unwrap();
+        let legacy = format!(
+            r#"{{
+            "game_id": "g",
+            "state": "in_progress",
+            "grid": [],
+            "players": [],
+            "spectators": [],
+            "current_turn": "1",
+            "round": 1,
+            "max_rounds": 1,
+            "used_words": [],
+            "timer_vote_state": {votes}
+        }}"#
+        );
+        let back: GameSnapshot =
+            serde_json::from_str(&legacy).expect("a pre-game_type snapshot must still decode");
+        assert_eq!(back.game_type, GameType::Unknown);
     }
 }
