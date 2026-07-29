@@ -291,6 +291,8 @@ pub struct ScoreInfo {
 #[serde_with::serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuneBoxStanding {
+    /// Serializes as a quoted STRING, like every snowflake on this wire — an
+    /// id above 2^53 silently loses precision as a JSON number in JS.
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub player_id: i64,
     pub username: String,
