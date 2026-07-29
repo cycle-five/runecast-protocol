@@ -1785,4 +1785,23 @@ mod tests {
             serde_json::from_str(&legacy).expect("a pre-game_type snapshot must still decode");
         assert_eq!(back.game_type, GameType::Unknown);
     }
+
+    /// The property that makes ADDING a field to a snapshot safe, and so the
+    /// direct counterpart to the test above.
+    ///
+    /// A snapshot carrying a field the reader has never heard of must decode,
+    /// ignoring it. That is what lets a v0.18.0 server send `game_type` to a
+    /// v0.17.0 reader — and what will let the next field be added the same way.
+    /// It holds because no protocol type sets `deny_unknown_fields`; this test
+    /// is what stops someone adding it.
+    #[test]
+    fn snapshot_ignores_fields_it_does_not_know() {
+        let mut json = serde_json::to_string(&snapshot_of(GameType::Open)).unwrap();
+        // Splice in a field from a hypothetical future version.
+        json = json.replace('{', r#"{"a_field_from_the_future":[1,2,3],"#);
+
+        let back: GameSnapshot =
+            serde_json::from_str(&json).expect("an unknown field must be ignored, not rejected");
+        assert_eq!(back.game_type, GameType::Open);
+    }
 }
