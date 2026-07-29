@@ -278,6 +278,35 @@ pub struct ScoreInfo {
     pub score: i32,
 }
 
+/// One player's standing in a RuneBox **match**, as of the end of some round.
+///
+/// A match is several rounds; [`ScoreInfo`] describes a single round. Both are
+/// sent on `RuneBoxRoundEnded` because they answer different questions — "who
+/// won this round" and "who is winning the match".
+///
+/// Carries no word list, by construction. RuneBox found-sets are independent,
+/// so another player's words stay worth full value to you and naming them at
+/// round end would hand over the answers for a board that is still fresh in
+/// everyone's memory.
+#[serde_with::serde_as]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuneBoxStanding {
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub player_id: i64,
+    pub username: String,
+    /// Rounds this player has won outright.
+    ///
+    /// The deciding number in a two-player match, which is best-of-3 rather
+    /// than elimination — there is nobody to eliminate until it is over. In a
+    /// three-or-more-player match the field still counts round wins, but
+    /// elimination is what decides the match, so nothing reads it.
+    pub round_wins: u8,
+    /// This player's scores summed across every round played so far.
+    pub total_score: i32,
+    /// True once this player has been eliminated and moved to spectating.
+    pub eliminated: bool,
+}
+
 /// Player info in lobby game list (simplified).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1612,7 +1641,10 @@ mod tests {
         let json_none = serde_json::to_string(&base).unwrap();
         assert!(!json_none.contains("time_remaining_ms"));
         // Present + round-trips when Some.
-        let with = GameSnapshot { time_remaining_ms: Some(45_000), ..base };
+        let with = GameSnapshot {
+            time_remaining_ms: Some(45_000),
+            ..base
+        };
         let json = serde_json::to_string(&with).unwrap();
         assert!(json.contains("\"time_remaining_ms\":45000"));
         let back: GameSnapshot = serde_json::from_str(&json).unwrap();
