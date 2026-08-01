@@ -1,70 +1,79 @@
 name: 'Claude PR Review (Bedrock)'
 
-# Claude Code reviews PRs using Claude on Amazon Bedrock (burns AWS credits;
-# no per-day cap like the Gemini free tier). Auth is AWS OIDC — GitHub mints a
-# short-lived token and assumes an IAM role; no long-lived AWS keys.
+# Claude Code reviews a PR using Claude on Amazon Bedrock, ON DEMAND.
 #
-# DORMANT until you flip it on: the job is gated on the repo Variable
-# ENABLE_CLAUDE_REVIEW == 'true', so adding this file won't fire (or fail) a
-# review before the AWS side exists. To activate:
-#   1. Widen the gha-claude-reviewer IAM role trust policy to also allow
-#      repo:cycle-five/runecast-protocol:* (the role/OIDC provider/Bedrock
-#      perms from the anya setup are reused — only the trust scope changes).
-#   2. Install the cycle-five-review-bot GitHub App on this repo.
-#   3. Add repo Secrets  AWS_ROLE_TO_ASSUME, APP_ID, APP_PRIVATE_KEY.
-#   4. Add repo Variable ENABLE_CLAUDE_REVIEW = true.
-# Adjust AWS_REGION / the --model id below to a Bedrock model you've enabled.
+# ── Why on-demand (changed 2026-08-01) ──────────────────────────────────────
+# This used to trigger on `pull_request: [opened, synchronize]`, i.e. a full
+# review on every push to every PR. Measured cost: 182 review runs in July
+# across frontend+backend at roughly $1.24 each = $225.53 for the month, up 48%
+# from June's $152.27. That was invisible while AWS credits absorbed it; the
+# credits expired end of July 2026, so it is now real money.
 #
-# ── Why this is safe here, on the one PUBLIC repo ───────────────────────────
-# The bot runs only on the private repos elsewhere, deliberately. Protocol is
-# public, so the exposure question is real and the answer is that this workflow
-# was already written for it:
-#   * it triggers on `pull_request`, NOT `pull_request_target` — the latter is
-#     the trigger that runs untrusted fork code WITH secrets in scope;
-#   * it additionally skips fork PRs outright (`head.repo.fork == false`), and
-#     GitHub already withholds secrets from fork-triggered `pull_request` runs,
-#     so the guard is doubled;
-#   * it runs on ubuntu-latest, never a self-hosted runner, so there is no
-#     persistent-runner compromise path.
-# Net effect: PRs from branches in this repo get reviewed; fork PRs silently
-# skip the job. Note APP_PRIVATE_KEY can mint tokens for every repo the App is
-# installed on, so its blast radius is cross-repo — it is unreachable from
-# forks, but treat it accordingly.
+# Comment `/review` on a PR to run it. Nothing runs automatically.
 #
-# It is worth having HERE most of all: this crate is the wire contract both the
-# backend and the frontend compile against, and a mistake becomes expensive the
-# moment it ships in a tag.
+# ── Security: the fork guards are now LOAD-BEARING, not belt-and-braces ─────
+# This matters more than it looks. Under the old `pull_request` trigger, GitHub
+# itself withholds secrets from fork-triggered runs, so the fork check was a
+# second line of defence. `issue_comment` runs in the context of the BASE repo
+# with full secrets in scope, always — that automatic protection is gone.
+#
+# So both guards below are doing real work now:
+#   1. `author_association` in OWNER/MEMBER/COLLABORATOR — a drive-by commenter
+#      cannot trigger a run (which would also be a way to spend our money);
+#   2. an explicit fork refusal BEFORE any checkout — we never pull down
+#      untrusted head code while holding AWS creds and an App token.
+# Removing either one turns this into the `pull_request_target` footgun.
+#
+# ── This is the one PUBLIC repo, so read the guards above again ────────────
+# On frontend/backend the guards protect a repo only collaborators can comment
+# on. Here, ANYONE can comment on a PR. That makes `author_association` the load
+# -bearing control: without it, any passer-by could type `/review` and spend our
+# Bedrock budget at will, and a fork PR author could aim the run at their own
+# head commit.
+#
+# The old workflow's safety argument does NOT carry over. It rested on
+# `pull_request` (not `pull_request_target`) meaning GitHub withholds secrets
+# from fork runs. `issue_comment` always runs in the base repo with secrets in
+# scope, so that sentence is simply no longer true here. What remains true:
+#   * the job still runs on ubuntu-latest, never a self-hosted runner, so there
+#     is no persistent-runner compromise path;
+#   * APP_PRIVATE_KEY still mints tokens for every repo the App is installed on,
+#     so its blast radius is cross-repo — now guarded only by the `if` above.
+#
+# It is still worth having HERE most of all: this crate is the wire contract the
+# backend and frontend compile against, and a mistake becomes expensive the
+# moment it ships in a tag. But on this repo the `if:` block IS the security
+# boundary. Do not relax it.
+#
+# Auth is AWS OIDC — GitHub mints a short-lived token and assumes an IAM role;
+# no long-lived AWS keys. Gated on the repo Variable ENABLE_CLAUDE_REVIEW.
+# Requires: IAM role trust scoped to repo:cycle-five/runecast-protocol:*, the
+# cycle-five-review-bot App installed, and Secrets AWS_ROLE_TO_ASSUME / APP_ID /
+# APP_PRIVATE_KEY.
 
 on:
-  pull_request:
+  issue_comment:
     types:
-      - 'opened'
-      - 'synchronize'
+      - 'created'
 
 permissions:
   contents: 'read'
   pull-requests: 'write'
+  issues: 'write' # to acknowledge the triggering comment with a reaction
   id-token: 'write' # required for AWS OIDC
 
 jobs:
   review:
-    # Stays dormant until the AWS side is wired up and this Variable is set.
+    # `github.event.issue.pull_request` is what separates a PR comment from a
+    # plain issue comment — issue_comment fires for both.
     if: |-
-      ${{ vars.ENABLE_CLAUDE_REVIEW == 'true' && github.event.pull_request.head.repo.fork == false }}
+      ${{ vars.ENABLE_CLAUDE_REVIEW == 'true'
+          && github.event.issue.pull_request
+          && startsWith(github.event.comment.body, '/review')
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) }}
     runs-on: 'ubuntu-latest'
     timeout-minutes: 15
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4'
-        with:
-          fetch-depth: 0
-
-      - name: 'Configure AWS credentials (OIDC)'
-        uses: 'aws-actions/configure-aws-credentials@v4'
-        with:
-          role-to-assume: '${{ secrets.AWS_ROLE_TO_ASSUME }}'
-          aws-region: 'us-west-2' # adjust to a region where you've enabled Claude on Bedrock
-
       # Post reviews as our own GitHub App (cycle-five-review-bot) instead of the
       # default claude[bot] identity. Requires repo Secrets APP_ID + APP_PRIVATE_KEY.
       - name: 'Mint GitHub App token'
@@ -73,6 +82,54 @@ jobs:
         with:
           app-id: '${{ secrets.APP_ID }}'
           private-key: '${{ secrets.APP_PRIVATE_KEY }}'
+
+      # Runs BEFORE any checkout, deliberately. The issue_comment payload carries
+      # no head SHA and no fork flag, so we have to fetch them — and we must know
+      # we are not on a fork before pulling any code down.
+      - name: 'Resolve PR head, refuse forks'
+        id: 'pr'
+        env:
+          GH_TOKEN: '${{ steps.app_token.outputs.token }}'
+        run: |
+          set -euo pipefail
+          data=$(gh pr view "${{ github.event.issue.number }}" \
+                   --repo "${{ github.repository }}" \
+                   --json headRefOid,isCrossRepository,state)
+          sha=$(echo "$data" | jq -r '.headRefOid')
+          fork=$(echo "$data" | jq -r '.isCrossRepository')
+          state=$(echo "$data" | jq -r '.state')
+
+          if [ "$fork" != "false" ]; then
+            echo "::error::Refusing to review a fork PR. issue_comment runs with secrets in scope, so checking out untrusted head code here would expose them."
+            exit 1
+          fi
+          if [ "$state" != "OPEN" ]; then
+            echo "::error::PR is $state, not OPEN — nothing to review."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # Cheap ack so the requester knows it fired. An on-demand trigger with no
+      # feedback reads as broken while Claude spends two minutes thinking.
+      - name: 'Acknowledge the request'
+        env:
+          GH_TOKEN: '${{ steps.app_token.outputs.token }}'
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='eyes' --silent || true
+
+      - name: 'Checkout PR head'
+        uses: 'actions/checkout@v4'
+        with:
+          ref: '${{ steps.pr.outputs.sha }}'
+          fetch-depth: 0
+
+      - name: 'Configure AWS credentials (OIDC)'
+        uses: 'aws-actions/configure-aws-credentials@v4'
+        with:
+          role-to-assume: '${{ secrets.AWS_ROLE_TO_ASSUME }}'
+          aws-region: 'us-west-2' # adjust to a region where you've enabled Claude on Bedrock
 
       - name: 'Claude review'
         uses: 'anthropics/claude-code-action@v1'
@@ -83,30 +140,11 @@ jobs:
           # to use them — otherwise the review just lands in the (hidden) logs.
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ github.event.issue.number }}
 
-            Review this pull request. The PR branch is already checked out.
-            Be concise and skip nitpicks that don't matter.
-
-            This crate is the WIRE CONTRACT between runecast-backend and
-            runecast-frontend. Once a change ships in a signed tag both consume,
-            reversing it is expensive — so weight the review accordingly and
-            look hardest at:
-
-            * Backward compatibility. New enum variants must be additive and
-              must NOT displace a `#[serde(other)]` fallback arm from last
-              position, or older clients stop degrading and start failing.
-              New struct fields on existing types should be
-              `Option` + `#[serde(default, skip_serializing_if)]` so untouched
-              modes serialize byte-identically.
-            * Snowflake ids. Every i64 id must ride the wire as a STRING
-              (`#[serde_as(as = "serde_with::DisplayFromStr")]`). An unquoted
-              number silently corrupts above 2^53 in JavaScript.
-            * Typed serde only — no `serde_json::json!` or `serde_json::Value`
-              for data we own. See AI_CODING_STANDARDS.md.
-            * Information leaks. Messages broadcast to other players must not
-              carry data the recipient should not know.
-            * Public items documented; `cargo doc` warning-free.
+            Review this pull request. Focus on correctness bugs, security issues,
+            and deviations from the conventions in CLAUDE.md. Be concise and skip
+            nitpicks that don't matter. The PR branch is already checked out.
 
             Use `gh pr comment` for top-level feedback (a short summary verdict).
             Use `mcp__github_inline_comment__create_inline_comment` (with
