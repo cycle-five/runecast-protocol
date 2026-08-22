@@ -1,6 +1,6 @@
 [package]
 name = "runecast-protocol"
-version = "0.19.0"
+version = "0.19.1"
 edition = "2021"
 description = "Protocol definitions for RuneCast WebSocket communication"
 
