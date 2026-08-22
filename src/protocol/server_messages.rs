@@ -19,8 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, NewsNotificationType, PlayerInfo, Position, RematchCountdownState,
-    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState,
+    NewsItemPayload, PlayerInfo, Position, RematchCountdownState, RuneBoxStanding, ScoreInfo,
+    SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -839,6 +839,9 @@ fn default_max_players() -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Test-only: the lib build has no other use of this, so importing it at
+    // module scope makes it an unused import outside `cfg(test)`.
+    use crate::protocol::types::NewsNotificationType;
     use crate::protocol::{types, GameType};
 
     #[test]
