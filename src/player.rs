@@ -13,11 +13,17 @@ pub trait PlayerIdentity {
     /// Get player ID.
     fn player_id(&self) -> i64;
 
-    /// Get username.
+    /// Get the raw Discord username (the unique handle). For display, use `name()`.
     fn username(&self) -> &str;
 
     /// Get avatar URL.
     fn avatar_url(&self) -> &str;
+
+    /// What to call this player in their current context, if the server
+    /// resolved it. `None` means "show `username`".
+    fn name(&self) -> Option<&crate::PlayerName> {
+        None
+    }
 }
 
 #[async_trait::async_trait]
@@ -70,4 +76,27 @@ pub trait PlayerContext: Send + Sync {
     // fn set_game_id(&mut self, game_id: &str);
     // fn set_is_spectating(&mut self, is_spectating: bool);
     // fn set_is_connected(&mut self, is_connected: bool);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PlayerIdentity;
+
+    struct Bare;
+    impl PlayerIdentity for Bare {
+        fn player_id(&self) -> i64 {
+            1
+        }
+        fn username(&self) -> &str {
+            "u"
+        }
+        fn avatar_url(&self) -> &str {
+            ""
+        }
+    }
+
+    #[test]
+    fn an_identity_that_resolves_no_name_reports_none() {
+        assert!(Bare.name().is_none());
+    }
 }

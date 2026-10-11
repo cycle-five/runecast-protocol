@@ -19,11 +19,13 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, PlayerInfo, Position, RematchCountdownState, RuneBoxStanding, ScoreInfo,
-    SpectatorInfo, TimerVoteState,
+    NewsItemPayload, PlayerInfo, PlayerName, Position, RematchCountdownState, RuneBoxStanding,
+    ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
+// Servers box outgoing messages; boxing fields here would change the public API.
+#[allow(clippy::large_enum_variant)]
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -466,7 +468,13 @@ pub enum ServerMessage {
     SpectatorBecamePlayer {
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
+        /// The player's raw Discord username: the unique handle. Display
+        /// `name` instead when it is present.
         username: String,
+        /// What to call this player. Absent from servers older than protocol
+        /// 0.20; fall back to `username`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<PlayerName>,
         game_id: String,
     },
 
@@ -845,6 +853,33 @@ mod tests {
     use crate::protocol::{types, GameType};
 
     #[test]
+    fn spectator_became_player_carries_the_name_on_the_wire() {
+        let msg = ServerMessage::SpectatorBecamePlayer {
+            player_id: 1_234_567_890_123_456_789,
+            username: "ada".to_string(),
+            name: Some(PlayerName::new("Ada", Some("Rune Queen".into()))),
+            game_id: "g1".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""name":{"discord":"Ada","runecast":"Rune Queen"}"#));
+        assert!(json.contains(r#""player_id":"1234567890123456789""#));
+    }
+
+    #[test]
+    fn spectator_became_player_without_a_name_parses_as_none() {
+        let raw = r#"{"type":"spectator_became_player","player_id":"42","username":"ada","game_id":"g1"}"#;
+        match serde_json::from_str::<ServerMessage>(raw).unwrap() {
+            ServerMessage::SpectatorBecamePlayer {
+                player_id, name, ..
+            } => {
+                assert_eq!(player_id, 42);
+                assert!(name.is_none());
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_server_message_into_json() {
         let msg = ServerMessage::BoardShuffled {
             player_id: 1_234_567_890,
@@ -905,6 +940,7 @@ mod tests {
             player: LobbyPlayerInfo {
                 user_id: 123,
                 username: "TestPlayer".to_string(),
+                name: None,
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
@@ -933,6 +969,7 @@ mod tests {
             player: LobbyPlayerInfo {
                 user_id: 1,
                 username: "x".into(),
+                name: None,
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
@@ -1421,6 +1458,7 @@ mod tests {
             players: vec![types::GamePlayerInfo {
                 user_id: 111_222_333_444_555_666,
                 username: "Player1".to_string(),
+                name: None,
                 avatar_url: None,
                 turn_order: 0,
                 score: 0,
@@ -1672,11 +1710,13 @@ mod tests {
                 ScoreInfo {
                     user_id: 1_234_567_890_123_456_789,
                     username: "Ada".to_string(),
+                    name: None,
                     score: 41,
                 },
                 ScoreInfo {
                     user_id: 8_876_543_210_987_654_321_i64,
                     username: "Bo".to_string(),
+                    name: None,
                     score: 12,
                 },
             ],
@@ -1684,6 +1724,7 @@ mod tests {
             standings: vec![RuneBoxStanding {
                 player_id: 1_234_567_890_123_456_789,
                 username: "Ada".to_string(),
+                name: None,
                 round_wins: 1,
                 total_score: 41,
                 eliminated: false,

@@ -156,6 +156,54 @@ impl std::fmt::Display for GameType {
     }
 }
 
+// ============================================================================
+// Player names
+// ============================================================================
+
+/// What to call a player, in the context this message was sent in.
+///
+/// Show [`runecast`](Self::runecast) when it is set, otherwise
+/// [`discord`](Self::discord). A viewer who has turned on austere nicknames is
+/// shown `discord` always. [`shown`](Self::shown) applies that rule.
+///
+/// ```
+/// use runecast_protocol::PlayerName;
+///
+/// let name = PlayerName::new("Ada", Some("Rune Queen".to_string()));
+/// assert_eq!(name.shown(false), "Rune Queen");
+/// assert_eq!(name.shown(true), "Ada");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerName {
+    /// The name Discord itself would show here: the player's nickname in this
+    /// server (when the lobby is in one and they have one there), else their
+    /// Discord display name, else their username.
+    pub discord: String,
+    /// The nickname the player chose in RuneCast, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runecast: Option<String>,
+}
+
+impl PlayerName {
+    /// A name from its two layers.
+    #[must_use]
+    pub fn new(discord: impl Into<String>, runecast: Option<String>) -> Self {
+        Self {
+            discord: discord.into(),
+            runecast,
+        }
+    }
+
+    /// The name to display, given the viewer's austere-nicknames setting.
+    #[must_use]
+    pub fn shown(&self, austere: bool) -> &str {
+        match &self.runecast {
+            Some(chosen) if !austere && !chosen.is_empty() => chosen,
+            _ => &self.discord,
+        }
+    }
+}
+
 /// Player information in the lobby (pre-game).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,7 +211,13 @@ pub struct LobbyPlayerInfo {
     /// User ID
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     /// Profile banner URL (Discord CDN)
@@ -221,7 +275,13 @@ pub struct PlayerInfo {
     /// User ID (string to preserve JS number precision)
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     pub score: i32,
@@ -246,7 +306,13 @@ fn default_true() -> bool {
 pub struct GamePlayerInfo {
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     pub turn_order: u8,
@@ -263,7 +329,13 @@ pub struct GamePlayerInfo {
 pub struct SpectatorInfo {
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
 }
@@ -274,7 +346,13 @@ pub struct SpectatorInfo {
 pub struct ScoreInfo {
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     pub score: i32,
 }
 
@@ -295,7 +373,13 @@ pub struct RuneBoxStanding {
     /// id above 2^53 silently loses precision as a JSON number in JS.
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub player_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     /// Rounds this player has won outright.
     ///
     /// The deciding number in a two-player match, which is best-of-3 rather
@@ -315,7 +399,13 @@ pub struct RuneBoxStanding {
 pub struct LobbyGamePlayerInfo {
     #[serde_as(as = "serde_with::DisplayFromStr")]
     pub user_id: i64,
+    /// The player's raw Discord username: the unique handle. Display
+    /// [`name`](Self::name) instead when it is present.
     pub username: String,
+    /// What to call this player. Absent from servers older than protocol
+    /// 0.20; fall back to `username`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<PlayerName>,
     pub score: i32,
 }
 
@@ -917,9 +1007,9 @@ impl From<&String> for NewsNotificationType {
 /// Mirrors the backend's `NewsItem` model but stripped of fields that
 /// shouldn't leave the server (`created_by` user id).
 ///
-/// Used in [`ServerMessage::NewsAnnounced`] for live push and is shape-
-/// compatible with what `/api/news` returns, so the same UI code path
-/// can render either source.
+/// Used in [`ServerMessage::NewsAnnounced`](crate::ServerMessage::NewsAnnounced) for live push
+/// and is shape-compatible with what `/api/news` returns, so the same UI code path can render
+/// either source.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct NewsItemPayload {
     pub id: String,
@@ -1042,6 +1132,7 @@ mod tests {
             player: LobbyPlayerInfo {
                 user_id: 123,
                 username: "TestUser".to_string(),
+                name: None,
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
@@ -1068,6 +1159,7 @@ mod tests {
         let player = PlayerInfo {
             user_id: 1,
             username: "Player1".to_string(),
+            name: None,
             avatar_url: None,
             score: 10,
             gems: 5,
@@ -1078,6 +1170,7 @@ mod tests {
         let spectator = SpectatorInfo {
             user_id: 2,
             username: "Spec1".to_string(),
+            name: None,
             avatar_url: Some("http://avatar.url".to_string()),
         };
 
@@ -1569,6 +1662,7 @@ mod tests {
         let player = PlayerInfo {
             user_id: 1,
             username: "Player1".to_string(),
+            name: None,
             avatar_url: None,
             score: 0,
             gems: 0,
@@ -1805,5 +1899,74 @@ mod tests {
         let back: GameSnapshot =
             serde_json::from_str(&json).expect("an unknown field must be ignored, not rejected");
         assert_eq!(back.game_type, GameType::Open);
+    }
+
+    #[test]
+    fn player_name_shows_the_runecast_nickname_unless_austere() {
+        let name = PlayerName::new("Ada", Some("Rune Queen".to_string()));
+        assert_eq!(name.shown(false), "Rune Queen");
+        assert_eq!(name.shown(true), "Ada");
+    }
+
+    #[test]
+    fn player_name_without_a_runecast_nickname_shows_discord_either_way() {
+        let name = PlayerName::new("Ada", None);
+        assert_eq!(name.shown(false), "Ada");
+        assert_eq!(name.shown(true), "Ada");
+    }
+
+    #[test]
+    fn player_name_with_an_empty_runecast_nickname_shows_discord() {
+        assert_eq!(
+            PlayerName::new("Ada", Some(String::new())).shown(false),
+            "Ada"
+        );
+    }
+
+    #[test]
+    fn player_name_omits_an_absent_runecast_nickname_on_the_wire() {
+        let json = serde_json::to_string(&PlayerName::new("Ada", None)).unwrap();
+        assert_eq!(json, r#"{"discord":"Ada"}"#);
+        let json = serde_json::to_string(&PlayerName::new("Ada", Some("Q".into()))).unwrap();
+        assert_eq!(json, r#"{"discord":"Ada","runecast":"Q"}"#);
+        let back: PlayerName = serde_json::from_str(r#"{"discord":"Ada"}"#).unwrap();
+        assert_eq!(back, PlayerName::new("Ada", None));
+    }
+
+    #[test]
+    fn a_player_struct_carries_its_name_beside_username() {
+        let p = SpectatorInfo {
+            user_id: 1_098_406_821_124_911_175,
+            username: "ada_l".into(),
+            name: Some(PlayerName::new("Ada", Some("Rune Queen".into()))),
+            avatar_url: None,
+        };
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(json.contains(r#""username":"ada_l""#), "{json}");
+        assert!(
+            json.contains(r#""name":{"discord":"Ada","runecast":"Rune Queen"}"#),
+            "{json}"
+        );
+    }
+
+    #[test]
+    fn a_player_without_a_resolved_name_has_no_name_key() {
+        let p = ScoreInfo {
+            user_id: 1,
+            username: "ada_l".into(),
+            name: None,
+            score: 3,
+        };
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(!json.contains("\"name\""), "{json}");
+    }
+
+    /// A server older than 0.20 sends no `name`; a 0.20 client still parses it.
+    #[test]
+    fn json_from_an_older_server_parses_with_no_name() {
+        let old = r#"{"user_id":"1","username":"ada_l","score":3}"#;
+        let p: ScoreInfo = serde_json::from_str(old).unwrap();
+        assert_eq!(p.username, "ada_l");
+        assert!(p.name.is_none());
     }
 }
