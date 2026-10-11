@@ -19,8 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, PlayerInfo, Position, RematchCountdownState, RuneBoxStanding, ScoreInfo,
-    SpectatorInfo, TimerVoteState,
+    NewsItemPayload, PlayerInfo, PlayerName, Position, RematchCountdownState, RuneBoxStanding,
+    ScoreInfo, SpectatorInfo, TimerVoteState,
 };
 
 /// Messages sent from server to client.
@@ -466,7 +466,13 @@ pub enum ServerMessage {
     SpectatorBecamePlayer {
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
+        /// The player's raw Discord username: the unique handle. Display
+        /// `name` instead when it is present.
         username: String,
+        /// What to call this player. Absent from servers older than protocol
+        /// 0.20; fall back to `username`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<PlayerName>,
         game_id: String,
     },
 
@@ -905,6 +911,7 @@ mod tests {
             player: LobbyPlayerInfo {
                 user_id: 123,
                 username: "TestPlayer".to_string(),
+                name: None,
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
@@ -933,6 +940,7 @@ mod tests {
             player: LobbyPlayerInfo {
                 user_id: 1,
                 username: "x".into(),
+                name: None,
                 avatar_url: None,
                 banner_url: None,
                 accent_color: None,
@@ -1421,6 +1429,7 @@ mod tests {
             players: vec![types::GamePlayerInfo {
                 user_id: 111_222_333_444_555_666,
                 username: "Player1".to_string(),
+                name: None,
                 avatar_url: None,
                 turn_order: 0,
                 score: 0,
@@ -1672,11 +1681,13 @@ mod tests {
                 ScoreInfo {
                     user_id: 1_234_567_890_123_456_789,
                     username: "Ada".to_string(),
+                    name: None,
                     score: 41,
                 },
                 ScoreInfo {
                     user_id: 8_876_543_210_987_654_321_i64,
                     username: "Bo".to_string(),
+                    name: None,
                     score: 12,
                 },
             ],
@@ -1684,6 +1695,7 @@ mod tests {
             standings: vec![RuneBoxStanding {
                 player_id: 1_234_567_890_123_456_789,
                 username: "Ada".to_string(),
+                name: None,
                 round_wins: 1,
                 total_score: 41,
                 eliminated: false,

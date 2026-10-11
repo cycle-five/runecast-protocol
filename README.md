@@ -116,6 +116,18 @@ pub enum ErrorCode {
 }
 ```
 
+## Player names
+
+Every player struct carries two names:
+
+- `username` — the raw Discord username (the unique handle). Stable; use it as an identifier.
+- `name: Option<PlayerName>` — what to call the player. `PlayerName { discord, runecast }`:
+  `discord` is what Discord would show in this context (server nickname, else display
+  name, else username); `runecast` is the nickname the player chose in RuneCast.
+  Display `name.shown(austere)`: `runecast` when set, unless the viewer turned on
+  austere nicknames, else `discord`. `name` is absent from servers older than 0.20 —
+  fall back to `username`.
+
 ## Compatibility Layer
 
 The `compat` module helps with migration:
