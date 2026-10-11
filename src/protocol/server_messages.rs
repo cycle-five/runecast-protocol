@@ -24,6 +24,8 @@ use super::types::{
 };
 
 /// Messages sent from server to client.
+// Servers box outgoing messages; boxing fields here would change the public API.
+#[allow(clippy::large_enum_variant)]
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -849,6 +851,33 @@ mod tests {
     // module scope makes it an unused import outside `cfg(test)`.
     use crate::protocol::types::NewsNotificationType;
     use crate::protocol::{types, GameType};
+
+    #[test]
+    fn spectator_became_player_carries_the_name_on_the_wire() {
+        let msg = ServerMessage::SpectatorBecamePlayer {
+            player_id: 1_234_567_890_123_456_789,
+            username: "ada".to_string(),
+            name: Some(PlayerName::new("Ada", Some("Rune Queen".into()))),
+            game_id: "g1".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""name":{"discord":"Ada","runecast":"Rune Queen"}"#));
+        assert!(json.contains(r#""player_id":"1234567890123456789""#));
+    }
+
+    #[test]
+    fn spectator_became_player_without_a_name_parses_as_none() {
+        let raw = r#"{"type":"spectator_became_player","player_id":"42","username":"ada","game_id":"g1"}"#;
+        match serde_json::from_str::<ServerMessage>(raw).unwrap() {
+            ServerMessage::SpectatorBecamePlayer {
+                player_id, name, ..
+            } => {
+                assert_eq!(player_id, 42);
+                assert!(name.is_none());
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
 
     #[test]
     fn test_server_message_into_json() {

@@ -198,7 +198,7 @@ impl PlayerName {
     #[must_use]
     pub fn shown(&self, austere: bool) -> &str {
         match &self.runecast {
-            Some(chosen) if !austere => chosen,
+            Some(chosen) if !austere && !chosen.is_empty() => chosen,
             _ => &self.discord,
         }
     }
@@ -1007,9 +1007,9 @@ impl From<&String> for NewsNotificationType {
 /// Mirrors the backend's `NewsItem` model but stripped of fields that
 /// shouldn't leave the server (`created_by` user id).
 ///
-/// Used in [`ServerMessage::NewsAnnounced`](crate::ServerMessage::NewsAnnounced) for live push and is shape-
-/// compatible with what `/api/news` returns, so the same UI code path
-/// can render either source.
+/// Used in [`ServerMessage::NewsAnnounced`](crate::ServerMessage::NewsAnnounced) for live push
+/// and is shape-compatible with what `/api/news` returns, so the same UI code path can render
+/// either source.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct NewsItemPayload {
     pub id: String,
@@ -1913,6 +1913,14 @@ mod tests {
         let name = PlayerName::new("Ada", None);
         assert_eq!(name.shown(false), "Ada");
         assert_eq!(name.shown(true), "Ada");
+    }
+
+    #[test]
+    fn player_name_with_an_empty_runecast_nickname_shows_discord() {
+        assert_eq!(
+            PlayerName::new("Ada", Some(String::new())).shown(false),
+            "Ada"
+        );
     }
 
     #[test]

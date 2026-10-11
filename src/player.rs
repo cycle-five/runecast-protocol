@@ -13,7 +13,7 @@ pub trait PlayerIdentity {
     /// Get player ID.
     fn player_id(&self) -> i64;
 
-    /// Get username.
+    /// Get the raw Discord username (the unique handle). For display, use `name()`.
     fn username(&self) -> &str;
 
     /// Get avatar URL.
