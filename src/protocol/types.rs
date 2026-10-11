@@ -156,6 +156,54 @@ impl std::fmt::Display for GameType {
     }
 }
 
+// ============================================================================
+// Player names
+// ============================================================================
+
+/// What to call a player, in the context this message was sent in.
+///
+/// Show [`runecast`](Self::runecast) when it is set, otherwise
+/// [`discord`](Self::discord). A viewer who has turned on austere nicknames is
+/// shown `discord` always. [`shown`](Self::shown) applies that rule.
+///
+/// ```
+/// use runecast_protocol::PlayerName;
+///
+/// let name = PlayerName::new("Ada", Some("Rune Queen".to_string()));
+/// assert_eq!(name.shown(false), "Rune Queen");
+/// assert_eq!(name.shown(true), "Ada");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerName {
+    /// The name Discord itself would show here: the player's nickname in this
+    /// server (when the lobby is in one and they have one there), else their
+    /// Discord display name, else their username.
+    pub discord: String,
+    /// The nickname the player chose in RuneCast, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runecast: Option<String>,
+}
+
+impl PlayerName {
+    /// A name from its two layers.
+    #[must_use]
+    pub fn new(discord: impl Into<String>, runecast: Option<String>) -> Self {
+        Self {
+            discord: discord.into(),
+            runecast,
+        }
+    }
+
+    /// The name to display, given the viewer's austere-nicknames setting.
+    #[must_use]
+    pub fn shown(&self, austere: bool) -> &str {
+        match &self.runecast {
+            Some(chosen) if !austere => chosen,
+            _ => &self.discord,
+        }
+    }
+}
+
 /// Player information in the lobby (pre-game).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1805,5 +1853,29 @@ mod tests {
         let back: GameSnapshot =
             serde_json::from_str(&json).expect("an unknown field must be ignored, not rejected");
         assert_eq!(back.game_type, GameType::Open);
+    }
+
+    #[test]
+    fn player_name_shows_the_runecast_nickname_unless_austere() {
+        let name = PlayerName::new("Ada", Some("Rune Queen".to_string()));
+        assert_eq!(name.shown(false), "Rune Queen");
+        assert_eq!(name.shown(true), "Ada");
+    }
+
+    #[test]
+    fn player_name_without_a_runecast_nickname_shows_discord_either_way() {
+        let name = PlayerName::new("Ada", None);
+        assert_eq!(name.shown(false), "Ada");
+        assert_eq!(name.shown(true), "Ada");
+    }
+
+    #[test]
+    fn player_name_omits_an_absent_runecast_nickname_on_the_wire() {
+        let json = serde_json::to_string(&PlayerName::new("Ada", None)).unwrap();
+        assert_eq!(json, r#"{"discord":"Ada"}"#);
+        let json = serde_json::to_string(&PlayerName::new("Ada", Some("Q".into()))).unwrap();
+        assert_eq!(json, r#"{"discord":"Ada","runecast":"Q"}"#);
+        let back: PlayerName = serde_json::from_str(r#"{"discord":"Ada"}"#).unwrap();
+        assert_eq!(back, PlayerName::new("Ada", None));
     }
 }
