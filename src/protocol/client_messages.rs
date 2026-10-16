@@ -258,6 +258,11 @@ pub enum ClientMessage {
         previous_game_id: String,
     },
 
+    /// Switch the current lobby's auto-rematch setting. Any lobby member may send
+    /// it; the server broadcasts `LobbyChange::AutoRematchChanged` in a
+    /// `LobbyDelta`, and sending the current value again changes nothing.
+    SetAutoRematch { enabled: bool },
+
     // ========================================================================
     // Admin Messages
     // ========================================================================
@@ -322,6 +327,7 @@ impl ClientMessage {
             Self::VoteForTimer { .. } => "vote_for_timer",
             Self::TriggerRematch { .. } => "trigger_rematch",
             Self::LeaveRematch { .. } => "leave_rematch",
+            Self::SetAutoRematch { .. } => "set_auto_rematch",
             Self::AdminGetGames => "admin_get_games",
             Self::AdminDeleteGame { .. } => "admin_delete_game",
             Self::PlayerDisconnected { .. } => "player_disconnected",
@@ -351,6 +357,7 @@ impl ClientMessage {
                 | Self::VoteForTimer { .. }
                 | Self::TriggerRematch { .. }
                 | Self::LeaveRematch { .. }
+                | Self::SetAutoRematch { .. }
                 | Self::AdminGetGames
                 | Self::AdminDeleteGame { .. }
         )
@@ -576,5 +583,17 @@ mod tests {
                 kind: AdventureEventKind::Snake
             }
         ));
+    }
+
+    #[test]
+    fn set_auto_rematch_parses_and_needs_a_lobby() {
+        let msg: ClientMessage =
+            serde_json::from_str(r#"{"type":"set_auto_rematch","enabled":false}"#).unwrap();
+        assert!(matches!(
+            msg,
+            ClientMessage::SetAutoRematch { enabled: false }
+        ));
+        assert_eq!(msg.message_type(), "set_auto_rematch");
+        assert!(msg.requires_lobby());
     }
 }

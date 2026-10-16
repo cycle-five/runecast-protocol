@@ -557,6 +557,23 @@ pub enum RematchCountdownState {
         game_type: GameType,
     },
 
+    /// Auto-rematch is off for the lobby, or was switched off mid-countdown: no
+    /// timer. Each eligible player who presses Play Again (`TriggerRematch`)
+    /// joins `ready`; the rematch starts for `ready` only, once it reaches
+    /// `needed`. Exists only while at least `needed` players are eligible.
+    OptIn {
+        /// Players who pressed Play Again.
+        #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+        ready: Vec<i64>,
+        /// The previous game's players who may still opt in (a superset of `ready`).
+        #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+        eligible: Vec<i64>,
+        /// How many must be ready before the rematch starts (`REMATCH_MIN_PLAYERS`).
+        needed: u8,
+        /// The game pool/game type for the rematch
+        game_type: GameType,
+    },
+
     /// A player triggered an early start
     Starting {
         /// Who triggered the early start (None if countdown expired naturally)
@@ -601,6 +618,13 @@ pub enum LobbyChange {
 
     /// Host changed
     HostChanged { new_host_id: String },
+
+    /// The lobby's auto-rematch setting changed. Any lobby member may change it.
+    AutoRematchChanged {
+        enabled: bool,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        changed_by: i64,
+    },
 }
 
 /// Changes to game state (for delta updates).
@@ -1968,5 +1992,47 @@ mod tests {
         let p: ScoreInfo = serde_json::from_str(old).unwrap();
         assert_eq!(p.username, "ada_l");
         assert!(p.name.is_none());
+    }
+
+    #[test]
+    fn opt_in_state_round_trips_with_string_ids() {
+        let s = RematchCountdownState::OptIn {
+            ready: vec![1],
+            eligible: vec![1, 2],
+            needed: 2,
+            game_type: GameType::Open,
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(json.contains(r#""status":"opt_in""#), "{json}");
+        assert!(json.contains(r#""ready":["1"]"#), "{json}");
+        assert!(json.contains(r#""eligible":["1","2"]"#), "{json}");
+        assert!(json.contains(r#""needed":2"#), "{json}");
+        let back: RematchCountdownState = serde_json::from_str(&json).unwrap();
+        assert!(
+            matches!(&back, RematchCountdownState::OptIn { ready, eligible, needed: 2, game_type: GameType::Open }
+                if ready == &[1] && eligible == &[1, 2]),
+            "{back:?}"
+        );
+    }
+
+    #[test]
+    fn auto_rematch_changed_round_trips() {
+        let c = LobbyChange::AutoRematchChanged {
+            enabled: false,
+            changed_by: 42,
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        assert_eq!(
+            json,
+            r#"{"change_type":"auto_rematch_changed","enabled":false,"changed_by":"42"}"#
+        );
+        let back: LobbyChange = serde_json::from_str(&json).unwrap();
+        assert!(matches!(
+            back,
+            LobbyChange::AutoRematchChanged {
+                enabled: false,
+                changed_by: 42
+            }
+        ));
     }
 }
