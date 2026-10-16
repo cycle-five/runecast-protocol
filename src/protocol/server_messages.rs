@@ -838,10 +838,18 @@ pub struct LobbySnapshot {
     #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_id: Option<i64>,
+    /// Whether a finished game arms a rematch countdown (`true`) or an opt-in
+    /// (`false`). Absent from backends before v0.48.0, so it reads as on.
+    #[serde(default = "default_true")]
+    pub auto_rematch: bool,
 }
 
 fn default_max_players() -> u8 {
     6
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -1524,6 +1532,7 @@ mod tests {
             max_players: 6,
             sandbox_config: None,
             host_id: None,
+            auto_rematch: true,
         };
         snap.sandbox_config = Some(GameConfig::default());
 
@@ -1545,6 +1554,7 @@ mod tests {
             max_players: 6,
             sandbox_config: None,
             host_id: None,
+            auto_rematch: true,
         };
         assert!(
             !serde_json::to_string(&plain)
@@ -1573,6 +1583,7 @@ mod tests {
             max_players: 6,
             sandbox_config: None,
             host_id: Some(snowflake),
+            auto_rematch: true,
         };
         let json = serde_json::to_string(&snap).unwrap();
         // Quoted = string on the wire; an unquoted number would be the bug.
@@ -1827,5 +1838,24 @@ mod tests {
             } => assert_eq!(next_round_starts_at, Some(at)),
             other => panic!("wrong variant: {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_snapshot_without_auto_rematch_reads_as_on() {
+        let json = r#"{"lobby_id":"l","lobby_type":"channel","players":[],"games":[]}"#;
+        let snap: LobbySnapshot = serde_json::from_str(json).unwrap();
+        assert!(
+            snap.auto_rematch,
+            "an older server's snapshot must read as auto-rematch on"
+        );
+    }
+
+    #[test]
+    fn a_snapshot_carries_auto_rematch_off() {
+        let json = r#"{"lobby_id":"l","lobby_type":"channel","players":[],"games":[],"auto_rematch":false}"#;
+        let snap: LobbySnapshot = serde_json::from_str(json).unwrap();
+        assert!(!snap.auto_rematch);
+        let out = serde_json::to_string(&snap).unwrap();
+        assert!(out.contains(r#""auto_rematch":false"#), "{out}");
     }
 }
