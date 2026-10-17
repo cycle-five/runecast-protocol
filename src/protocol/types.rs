@@ -9,6 +9,52 @@ use serde::{Deserialize, Serialize};
 // These would come from crate::models in the actual backend
 // For now, we define them here for the protocol module to be self-contained
 
+/// Why a turn was passed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnPassReason {
+    /// The player chose to pass.
+    Voluntary,
+    /// The turn timer expired.
+    Timer,
+    /// The player disconnected and the turn grace period ran out.
+    Disconnected,
+    /// The player left the game.
+    Left,
+}
+
+/// How a WebSocket connection relates to an existing session of the player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectKind {
+    /// A first connection.
+    Fresh,
+    /// Re-establishing a dropped connection from the same tab.
+    Reconnect,
+    /// Deliberately replacing a live connection from another tab.
+    TakeOver,
+}
+
+/// The handshake on the WebSocket URL query: `?token=...&tab=...&kind=...`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectParams {
+    /// Identifier of the connecting browser tab.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab: Option<String>,
+    /// How this connection relates to an existing session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<ConnectKind>,
+}
+
+/// A per-mode player cap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModeCap {
+    /// The mode the cap applies to.
+    pub game_type: GameType,
+    /// Maximum players in a game of that mode.
+    pub max_players: u8,
+}
+
 /// Grid position (row, column).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Position {
