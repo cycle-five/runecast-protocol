@@ -19,8 +19,8 @@ use super::types::{
     AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
     DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
     GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    NewsItemPayload, PlayerInfo, PlayerName, Position, RematchCountdownState, RuneBoxStanding,
-    ScoreInfo, SpectatorInfo, TimerVoteState,
+    ModeCap, NewsItemPayload, PlayerInfo, PlayerName, Position, RematchCountdownState,
+    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState, TurnPassReason,
 };
 
 /// Messages sent from server to client.
@@ -107,6 +107,18 @@ pub enum ServerMessage {
 
     /// Confirmation of leaving lobby.
     LobbyLeft,
+
+    /// This connection was replaced by a newer one for the same player and
+    /// is about to be closed.
+    ConnectionReplaced,
+
+    /// Sent to a pooled player the per-mode cap left out of a game start.
+    GameFull {
+        /// The game that filled up.
+        game_id: String,
+        /// The mode whose cap was reached.
+        game_type: GameType,
+    },
 
     /// Custom lobby was created successfully.
     CustomLobbyCreated {
@@ -261,6 +273,9 @@ pub enum ServerMessage {
     PlayerReconnected {
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
+        /// The game the player was seated in, when known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        game_id: Option<String>,
     },
 
     /// A player disconnected (may reconnect).
@@ -389,6 +404,9 @@ pub enum ServerMessage {
         #[serde_as(as = "serde_with::DisplayFromStr")]
         player_id: i64,
         game_id: String,
+        /// Why the turn was passed. Absent from backends before v0.49.0.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<TurnPassReason>,
     },
 
     /// Round number changed.
@@ -706,6 +724,8 @@ impl ServerMessage {
             Self::LobbySnapshot { .. } => "lobby_snapshot",
             Self::LobbyDelta { .. } => "lobby_delta",
             Self::LobbyLeft => "lobby_left",
+            Self::ConnectionReplaced => "connection_replaced",
+            Self::GameFull { .. } => "game_full",
             Self::CustomLobbyCreated { .. } => "custom_lobby_created",
             Self::GameStarted { .. } => "game_started",
             Self::GameSnapshot { .. } => "game_snapshot",
@@ -842,6 +862,10 @@ pub struct LobbySnapshot {
     /// (`false`). Absent from backends before v0.48.0, so it reads as on.
     #[serde(default = "default_true")]
     pub auto_rematch: bool,
+    /// Per-mode player caps that differ from `max_players`. Absent from
+    /// backends before v0.49.0 (and when empty).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mode_caps: Vec<ModeCap>,
 }
 
 fn default_max_players() -> u8 {
@@ -1521,6 +1545,120 @@ mod tests {
     }
 
     #[test]
+    fn turn_passed_carries_an_optional_reason() {
+        let m = ServerMessage::TurnPassed {
+            player_id: 7,
+            game_id: "g".into(),
+            reason: Some(crate::TurnPassReason::Disconnected),
+        };
+        assert_eq!(serde_json::to_value(&m).unwrap()["reason"], "disconnected");
+        let old: ServerMessage =
+            serde_json::from_str(r#"{"type":"turn_passed","player_id":"7","game_id":"g"}"#)
+                .unwrap();
+        assert!(matches!(
+            old,
+            ServerMessage::TurnPassed { reason: None, .. }
+        ));
+        let none = ServerMessage::TurnPassed {
+            player_id: 7,
+            game_id: "g".into(),
+            reason: None,
+        };
+        assert!(serde_json::to_value(&none).unwrap().get("reason").is_none());
+    }
+
+    #[test]
+    fn player_reconnected_names_its_game_when_known() {
+        let m = ServerMessage::PlayerReconnected {
+            player_id: 7,
+            game_id: Some("g".into()),
+        };
+        assert_eq!(serde_json::to_value(&m).unwrap()["game_id"], "g");
+        let none = ServerMessage::PlayerReconnected {
+            player_id: 7,
+            game_id: None,
+        };
+        assert!(serde_json::to_value(&none)
+            .unwrap()
+            .get("game_id")
+            .is_none());
+        let old: ServerMessage =
+            serde_json::from_str(r#"{"type":"player_reconnected","player_id":"7"}"#).unwrap();
+        assert!(matches!(
+            old,
+            ServerMessage::PlayerReconnected { game_id: None, .. }
+        ));
+    }
+
+    #[test]
+    fn connection_replaced_is_a_bare_tag() {
+        let m = ServerMessage::ConnectionReplaced;
+        assert_eq!(
+            serde_json::to_string(&m).unwrap(),
+            r#"{"type":"connection_replaced"}"#
+        );
+        assert_eq!(m.message_type(), "connection_replaced");
+    }
+
+    #[test]
+    fn game_full_round_trips() {
+        let m = ServerMessage::GameFull {
+            game_id: "g".into(),
+            game_type: GameType::Open,
+        };
+        let json = serde_json::to_string(&m).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json).unwrap(),
+            serde_json::from_str::<serde_json::Value>(
+                r#"{"type":"game_full","game_id":"g","game_type":"open"}"#
+            )
+            .unwrap()
+        );
+        assert!(matches!(
+            serde_json::from_str::<ServerMessage>(&json).unwrap(),
+            ServerMessage::GameFull {
+                game_type: GameType::Open,
+                ..
+            }
+        ));
+        assert_eq!(m.message_type(), "game_full");
+    }
+
+    #[test]
+    fn lobby_snapshot_mode_caps_are_additive() {
+        let old = r#"{"lobby_id":"l","lobby_type":"custom","players":[],"games":[]}"#;
+        let snap: LobbySnapshot = serde_json::from_str(old).unwrap();
+        assert!(snap.mode_caps.is_empty());
+        assert!(!serde_json::to_string(&snap).unwrap().contains("mode_caps"));
+        let capped = LobbySnapshot {
+            mode_caps: vec![crate::ModeCap {
+                game_type: GameType::Open,
+                max_players: 5,
+            }],
+            ..snap
+        };
+        let v = serde_json::to_value(&capped).unwrap();
+        assert_eq!(
+            v["mode_caps"],
+            serde_json::json!([{"game_type":"open","max_players":5}])
+        );
+    }
+
+    #[test]
+    fn connect_params_parse_kind_and_tab() {
+        use crate::{ConnectKind, ConnectParams};
+        assert_eq!(
+            serde_json::to_string(&ConnectKind::TakeOver).unwrap(),
+            r#""take_over""#
+        );
+        let p: ConnectParams = serde_json::from_str(r#"{"tab":"t1","kind":"take_over"}"#).unwrap();
+        assert_eq!(p.tab.as_deref(), Some("t1"));
+        assert_eq!(p.kind, Some(ConnectKind::TakeOver));
+        let d = ConnectParams::default();
+        assert!(d.tab.is_none() && d.kind.is_none());
+    }
+
+    #[test]
     fn lobby_snapshot_carries_sandbox_config() {
         // Build a minimal LobbySnapshot with sandbox_config set.
         let mut snap = LobbySnapshot {
@@ -1533,6 +1671,7 @@ mod tests {
             sandbox_config: None,
             host_id: None,
             auto_rematch: true,
+            mode_caps: vec![],
         };
         snap.sandbox_config = Some(GameConfig::default());
 
@@ -1555,6 +1694,7 @@ mod tests {
             sandbox_config: None,
             host_id: None,
             auto_rematch: true,
+            mode_caps: vec![],
         };
         assert!(
             !serde_json::to_string(&plain)
@@ -1584,6 +1724,7 @@ mod tests {
             sandbox_config: None,
             host_id: Some(snowflake),
             auto_rematch: true,
+            mode_caps: vec![],
         };
         let json = serde_json::to_string(&snap).unwrap();
         // Quoted = string on the wire; an unquoted number would be the bug.
