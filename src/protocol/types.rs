@@ -774,6 +774,10 @@ pub enum ErrorCode {
     PathTooShort,
     WordNotInDictionary,
     WordAlreadyUsed,
+    /// The requested `GameConfig.dictionary` is unknown, not loaded on this
+    /// server, or not allowed for this game type (e.g. `en-urban` outside a
+    /// sandbox game).
+    DictionaryNotAvailable,
 
     // Permission errors
     NotHost,
@@ -820,6 +824,7 @@ impl ErrorCode {
             Self::PathTooShort => "Word must be at least 3 letters",
             Self::WordNotInDictionary => "Word not found in dictionary",
             Self::WordAlreadyUsed => "Word has already been used",
+            Self::DictionaryNotAvailable => "That dictionary is not available for this game",
             Self::NotHost => "Only the host can do this",
             Self::NotEnoughPlayers => "Not enough players",
             Self::TooManyPlayers => "Too many players",
@@ -918,7 +923,20 @@ pub struct GameConfig {
     /// Random-event config for custom games. `None` for FFA/Adventure.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events: Option<EventConfig>,
+
+    /// Word list id for this game: `"en-standard"` (default) or `"en-urban"`.
+    /// `None` = `"en-standard"`. Non-standard lists are sandbox-only and
+    /// always unranked; the server rejects an unknown, unloaded or
+    /// disallowed id with `ErrorCode::DictionaryNotAvailable`. Daily and
+    /// Adventure ignore this field. Echoed back in lobby/game snapshots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dictionary: Option<String>,
 }
+
+/// Wire id of the standard (ranked) dictionary.
+pub const DICTIONARY_EN_STANDARD: &str = "en-standard";
+/// Wire id of the Urban Dictionary slang list (sandbox-only, unranked).
+pub const DICTIONARY_EN_URBAN: &str = "en-urban";
 
 fn default_grid_size() -> u8 {
     5
@@ -935,6 +953,7 @@ impl Default for GameConfig {
             bots: Vec::new(),
             custom: None,
             events: None,
+            dictionary: None,
         }
     }
 }
@@ -1124,6 +1143,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn game_config_dictionary_is_additive() {
+        // Old payloads (no field) still parse, and None is omitted on the wire.
+        let cfg: GameConfig = serde_json::from_str(r#"{"grid_size":5}"#).unwrap();
+        assert_eq!(cfg.dictionary, None);
+        assert!(!serde_json::to_string(&cfg).unwrap().contains("dictionary"));
+        let cfg: GameConfig =
+            serde_json::from_str(r#"{"grid_size":5,"dictionary":"en-urban"}"#).unwrap();
+        assert_eq!(cfg.dictionary.as_deref(), Some(DICTIONARY_EN_URBAN));
+        assert_eq!(
+            serde_json::to_string(&ErrorCode::DictionaryNotAvailable).unwrap(),
+            r#""dictionary_not_available""#
+        );
+    }
+
+    #[test]
     fn build_info_round_trips_snake_case() {
         let info = BuildInfo {
             version: "0.16.0".to_string(),
@@ -1296,6 +1330,7 @@ mod tests {
             bots: Vec::new(),
             custom: None,
             events: None,
+            dictionary: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":false"#));
@@ -1320,6 +1355,7 @@ mod tests {
             bots: Vec::new(),
             custom: None,
             events: None,
+            dictionary: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""regenerate_board_each_round":true"#));
@@ -1339,6 +1375,7 @@ mod tests {
             bots: Vec::new(),
             custom: None,
             events: None,
+            dictionary: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains(r#""adventure_level":7"#));

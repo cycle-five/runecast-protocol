@@ -523,6 +523,7 @@ mod tests {
                 bots: Vec::new(),
                 custom: None,
                 events: None,
+                dictionary: None,
             }),
         };
         let json = serde_json::to_string(&msg).unwrap();
