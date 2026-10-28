@@ -16,11 +16,12 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::GameType;
 
 use super::types::{
-    AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
-    DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, GameChange, GameConfig,
-    GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo, LobbyType,
-    ModeCap, NewsItemPayload, PlayerInfo, PlayerName, Position, RematchCountdownState,
-    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState, TurnPassReason,
+    default_dictionary, AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState,
+    DebugHandlerGameState, DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode,
+    GameChange, GameConfig, GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo,
+    LobbyPlayerInfo, LobbyType, ModeCap, NewsItemPayload, PlayerInfo, PlayerName, Position,
+    RematchCountdownState, RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState,
+    TurnPassReason,
 };
 
 /// Messages sent from server to client.
@@ -164,6 +165,11 @@ pub enum ServerMessage {
         /// Daily Challenge runs (incl. resumes); omitted otherwise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         time_remaining_ms: Option<u64>,
+        /// Slug of the dictionary this game uses — the same field as
+        /// [`GameSnapshot::dictionary`]. Absent before v0.23.0, so it reads as
+        /// `main`; always serialized.
+        #[serde(default = "default_dictionary")]
+        dictionary: String,
     },
 
     /// Full game state snapshot.
@@ -862,6 +868,10 @@ pub struct LobbySnapshot {
     /// (`false`). Absent from backends before v0.48.0, so it reads as on.
     #[serde(default = "default_true")]
     pub auto_rematch: bool,
+    /// Slug of the dictionary the lobby's games use. Absent from backends
+    /// before v0.23.0, so it reads as `main`; always serialized.
+    #[serde(default = "default_dictionary")]
+    pub dictionary: String,
     /// Per-mode player caps that differ from `max_players`. Absent from
     /// backends before v0.49.0 (and when empty).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1152,6 +1162,7 @@ mod tests {
             turn_time_limit: None,
             custom: None,
             time_remaining_ms: None,
+            dictionary: "main".to_string(),
         };
         let s = serde_json::to_string(&msg).unwrap();
         assert!(!s.contains("time_remaining_ms"));
@@ -1505,6 +1516,7 @@ mod tests {
             turn_time_limit: None,
             custom: Some(CustomMeta {}),
             time_remaining_ms: None,
+            dictionary: "main".to_string(),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(
@@ -1536,6 +1548,7 @@ mod tests {
             turn_time_limit: None,
             custom: None,
             time_remaining_ms: None,
+            dictionary: "main".to_string(),
         };
         let json2 = serde_json::to_string(&ffa).unwrap();
         assert!(
@@ -1672,6 +1685,7 @@ mod tests {
             host_id: None,
             auto_rematch: true,
             mode_caps: vec![],
+            dictionary: "main".to_string(),
         };
         snap.sandbox_config = Some(GameConfig::default());
 
@@ -1695,6 +1709,7 @@ mod tests {
             host_id: None,
             auto_rematch: true,
             mode_caps: vec![],
+            dictionary: "main".to_string(),
         };
         assert!(
             !serde_json::to_string(&plain)
@@ -1725,6 +1740,7 @@ mod tests {
             host_id: Some(snowflake),
             auto_rematch: true,
             mode_caps: vec![],
+            dictionary: "main".to_string(),
         };
         let json = serde_json::to_string(&snap).unwrap();
         // Quoted = string on the wire; an unquoted number would be the bug.
@@ -1835,6 +1851,7 @@ mod tests {
             turn_time_limit: None,
             custom: None,
             time_remaining_ms: Some(90_000),
+            dictionary: "main".to_string(),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(
@@ -1998,5 +2015,29 @@ mod tests {
         assert!(!snap.auto_rematch);
         let out = serde_json::to_string(&snap).unwrap();
         assert!(out.contains(r#""auto_rematch":false"#), "{out}");
+    }
+
+    #[test]
+    fn a_snapshot_without_dictionary_reads_as_main() {
+        let json = r#"{"lobby_id":"l","lobby_type":"channel","players":[],"games":[]}"#;
+        let snap: LobbySnapshot = serde_json::from_str(json).unwrap();
+        assert_eq!(snap.dictionary, "main");
+    }
+
+    #[test]
+    fn a_snapshot_always_serializes_dictionary() {
+        let json = r#"{"lobby_id":"l","lobby_type":"channel","players":[],"games":[]}"#;
+        let snap: LobbySnapshot = serde_json::from_str(json).unwrap();
+        let out = serde_json::to_string(&snap).unwrap();
+        assert!(out.contains(r#""dictionary":"main""#), "{out}");
+    }
+
+    #[test]
+    fn a_game_started_without_dictionary_reads_as_main() {
+        let json = r#"{"type":"game_started","game_id":"g","grid":[],"players":[],"your_turn_order":0,"current_turn":"1","round":1,"max_rounds":3}"#;
+        match serde_json::from_str::<ServerMessage>(json).unwrap() {
+            ServerMessage::GameStarted { dictionary, .. } => assert_eq!(dictionary, "main"),
+            other => panic!("wrong variant: {other:?}"),
+        }
     }
 }

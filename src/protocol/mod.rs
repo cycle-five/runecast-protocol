@@ -205,6 +205,7 @@ pub mod compat {
             custom: None,
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: crate::protocol::types::default_dictionary(),
         })
     }
 

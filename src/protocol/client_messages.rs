@@ -263,6 +263,12 @@ pub enum ClientMessage {
     /// `LobbyDelta`, and sending the current value again changes nothing.
     SetAutoRematch { enabled: bool },
 
+    /// Switch which dictionary the current lobby's games use. Any lobby member
+    /// may send it; the server broadcasts `LobbyChange::DictionaryChanged` in a
+    /// `LobbyDelta`, and sending the current value again changes nothing. Only
+    /// `main` is ranked.
+    SetLobbyDictionary { dictionary: String },
+
     // ========================================================================
     // Admin Messages
     // ========================================================================
@@ -328,6 +334,7 @@ impl ClientMessage {
             Self::TriggerRematch { .. } => "trigger_rematch",
             Self::LeaveRematch { .. } => "leave_rematch",
             Self::SetAutoRematch { .. } => "set_auto_rematch",
+            Self::SetLobbyDictionary { .. } => "set_lobby_dictionary",
             Self::AdminGetGames => "admin_get_games",
             Self::AdminDeleteGame { .. } => "admin_delete_game",
             Self::PlayerDisconnected { .. } => "player_disconnected",
@@ -358,6 +365,7 @@ impl ClientMessage {
                 | Self::TriggerRematch { .. }
                 | Self::LeaveRematch { .. }
                 | Self::SetAutoRematch { .. }
+                | Self::SetLobbyDictionary { .. }
                 | Self::AdminGetGames
                 | Self::AdminDeleteGame { .. }
         )
@@ -595,5 +603,18 @@ mod tests {
         ));
         assert_eq!(msg.message_type(), "set_auto_rematch");
         assert!(msg.requires_lobby());
+    }
+
+    #[test]
+    fn set_lobby_dictionary_round_trips() {
+        let json = r#"{"type":"set_lobby_dictionary","dictionary":"urban"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        assert!(matches!(
+            &msg,
+            ClientMessage::SetLobbyDictionary { dictionary } if dictionary == "urban"
+        ));
+        assert_eq!(msg.message_type(), "set_lobby_dictionary");
+        assert!(msg.requires_lobby());
+        assert_eq!(serde_json::to_string(&msg).unwrap(), json);
     }
 }
