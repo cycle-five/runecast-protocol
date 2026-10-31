@@ -346,6 +346,16 @@ fn default_true() -> bool {
     true
 }
 
+/// Slug of the standard, ranked dictionary. Every other dictionary is unranked.
+pub const MAIN_DICTIONARY: &str = "main";
+
+/// Serde default for `dictionary` fields: payloads from before v0.23.0 carry
+/// none, and every game then used the standard dictionary.
+#[must_use]
+pub fn default_dictionary() -> String {
+    MAIN_DICTIONARY.to_string()
+}
+
 /// Player info specifically for `GameStarted` message (includes turn order).
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -523,6 +533,11 @@ pub struct GameSnapshot {
     /// mode, whose found-words concept is the game-global `used_words`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub your_found_words: Option<Vec<String>>,
+    /// Slug of the dictionary this game was started with, so the badge survives
+    /// reconnect/spectate. Absent from backends before v0.23.0, so it reads as
+    /// `main`; always serialized.
+    #[serde(default = "default_dictionary")]
+    pub dictionary: String,
 }
 
 // ============================================================================
@@ -668,6 +683,13 @@ pub enum LobbyChange {
     /// The lobby's auto-rematch setting changed. Any lobby member may change it.
     AutoRematchChanged {
         enabled: bool,
+        #[serde_as(as = "serde_with::DisplayFromStr")]
+        changed_by: i64,
+    },
+
+    /// The lobby's dictionary changed. Any lobby member may change it.
+    DictionaryChanged {
+        dictionary: String,
         #[serde_as(as = "serde_with::DisplayFromStr")]
         changed_by: i64,
     },
@@ -1269,6 +1291,7 @@ mod tests {
             custom: None,
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: "main".to_string(),
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -1756,6 +1779,7 @@ mod tests {
             custom: Some(CustomMeta {}),
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: "main".to_string(),
         };
 
         // Serialized JSON must contain "custom"
@@ -1802,6 +1826,7 @@ mod tests {
             custom: None,
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: "main".to_string(),
         };
         // Omitted when None.
         let json_none = serde_json::to_string(&base).unwrap();
@@ -1853,6 +1878,7 @@ mod tests {
             custom: None,
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: "main".to_string(),
         };
         // Every non-RuneBox mode must serialize exactly as it did before.
         let json_none = serde_json::to_string(&base).unwrap();
@@ -1887,6 +1913,7 @@ mod tests {
             custom: None,
             time_remaining_ms: None,
             your_found_words: None,
+            dictionary: "main".to_string(),
         }
     }
 
@@ -2080,5 +2107,38 @@ mod tests {
                 changed_by: 42
             }
         ));
+    }
+
+    #[test]
+    fn dictionary_changed_round_trips() {
+        let c = LobbyChange::DictionaryChanged {
+            dictionary: "urban".to_string(),
+            changed_by: 42,
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        assert_eq!(
+            json,
+            r#"{"change_type":"dictionary_changed","dictionary":"urban","changed_by":"42"}"#
+        );
+        let back: LobbyChange = serde_json::from_str(&json).unwrap();
+        assert!(matches!(
+            back,
+            LobbyChange::DictionaryChanged { dictionary, changed_by: 42 } if dictionary == "urban"
+        ));
+    }
+
+    #[test]
+    fn default_dictionary_is_main() {
+        assert_eq!(MAIN_DICTIONARY, "main");
+        assert_eq!(default_dictionary(), "main");
+    }
+
+    #[test]
+    fn a_game_snapshot_without_dictionary_reads_as_main() {
+        let json = r#"{"game_id":"g","state":"in_progress","grid":[],"players":[],"spectators":[],"current_turn":"1","round":1,"max_rounds":3,"used_words":[],"timer_vote_state":{"status":"idle"}}"#;
+        let snap: GameSnapshot = serde_json::from_str(json).unwrap();
+        assert_eq!(snap.dictionary, "main");
+        let out = serde_json::to_string(&snap).unwrap();
+        assert!(out.contains(r#""dictionary":"main""#), "{out}");
     }
 }
