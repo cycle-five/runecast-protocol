@@ -35,7 +35,7 @@ pub enum ServerMessage {
     // ========================================================================
     /// Initial server greeting after WebSocket connect.
     ///
-    /// Sent immediately upon connection, before Identify.
+    /// Sent immediately upon connection, before any other message.
     Hello {
         /// Recommended heartbeat interval in milliseconds
         heartbeat_interval_ms: u32,
