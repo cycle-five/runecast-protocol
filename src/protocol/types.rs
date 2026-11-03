@@ -128,16 +128,6 @@ pub enum AdventureEventKind {
     Unknown,
 }
 
-/// Game mode variants.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GameMode {
-    Solo,
-    #[default]
-    Multiplayer,
-    Adventure,
-}
-
 // ============================================================================
 // Lobby Types
 // ============================================================================

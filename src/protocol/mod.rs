@@ -21,8 +21,7 @@
 //! ```text
 //! Client                                Server
 //!   │                                      │
-//!   │──── Identify ──────────────────────▶│
-//!   │◀─── Ready (LobbySnapshot) ──────────│
+//!   │◀─── Hello ──────────────────────────│
 //!   │                                      │
 //!   │──── JoinChannelLobby ──────────────▶│
 //!   │◀─── LobbyJoined ────────────────────│
@@ -94,8 +93,7 @@ pub const PROTOCOL_VERSION: &str = "1.0.0";
 ///
 /// This allows gradual migration without breaking the existing frontend.
 pub mod compat {
-    use super::{ClientMessage, Envelope, GameSnapshot, GameState, MaybeEnveloped, ServerMessage};
-    use serde_json::Value;
+    use super::{ClientMessage, Envelope, MaybeEnveloped, ServerMessage};
 
     /// Parse a raw JSON message, handling both legacy and new formats.
     ///
@@ -143,97 +141,6 @@ pub mod compat {
                 serde_json::to_string(&envelope)
             }
             None => serde_json::to_string(msg),
-        }
-    }
-
-    /// Convert legacy game state JSON to new `GameSnapshot` format.
-    ///
-    /// This handles the transition from the flat `game_state` message
-    /// to the structured `GameSnapshot` type.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the `state` field is not a valid game state.
-    #[must_use]
-    pub fn legacy_game_state_to_snapshot(value: &Value) -> Option<GameSnapshot> {
-        // Extract fields from legacy format
-        let game_id = value.get("game_id")?.as_str()?.to_string();
-        let state_str = value.get("state")?.as_str()?;
-
-        let state = match state_str {
-            "idle" => GameState::Idle,
-            "queueing" => GameState::Queueing,
-            "starting" => GameState::Starting,
-            "in_progress" => GameState::InProgress,
-            "finished" => GameState::Finished,
-            "cancelled" => GameState::Cancelled,
-            _ => return None,
-        };
-
-        Some(GameSnapshot {
-            game_id,
-            // The legacy flat format predates `game_type`, so this is normally
-            // absent and decodes to `Unknown` — the honest answer for a payload
-            // that never carried a mode. Read it anyway for the case where a
-            // newer producer still speaks the legacy shape.
-            game_type: value
-                .get("game_type")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default(),
-            state,
-            grid: serde_json::from_value(value.get("grid")?.clone()).ok()?,
-            players: serde_json::from_value(value.get("players")?.clone()).ok()?,
-            spectators: serde_json::from_value(value.get("spectators")?.clone())
-                .unwrap_or_default(),
-            current_turn: value.get("current_turn").and_then(|v| {
-                v.as_i64()
-                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
-            })?,
-            round: u8::try_from(value.get("round")?.as_i64()?).ok()?,
-            max_rounds: u8::try_from(value.get("max_rounds")?.as_i64()?).ok()?,
-            used_words: serde_json::from_value(value.get("used_words")?.clone())
-                .unwrap_or_default(),
-            timer_vote_state: serde_json::from_value(
-                value
-                    .get("timer_vote_state")
-                    .cloned()
-                    .unwrap_or(Value::Null),
-            )
-            .unwrap_or_default(),
-            your_player: None,
-            timer_expiration_time: None,
-            custom: None,
-            time_remaining_ms: None,
-            your_found_words: None,
-            dictionary: crate::protocol::types::default_dictionary(),
-        })
-    }
-
-    /// Convert new `GameSnapshot` to legacy `game_state` message format.
-    ///
-    /// Used when sending to clients that haven't upgraded yet.
-    #[must_use]
-    pub fn snapshot_to_legacy_game_state(snapshot: &GameSnapshot) -> ServerMessage {
-        let state_str = match snapshot.state {
-            GameState::Idle => "idle",
-            GameState::Queueing => "queueing",
-            GameState::Starting => "starting",
-            GameState::InProgress => "in_progress",
-            GameState::Finished => "finished",
-            GameState::Cancelled => "cancelled",
-        };
-
-        ServerMessage::GameStateUpdate {
-            game_id: snapshot.game_id.clone(),
-            state: state_str.to_string(),
-            grid: snapshot.grid.clone(),
-            players: snapshot.players.clone(),
-            current_turn: snapshot.current_turn,
-            round: i32::from(snapshot.round),
-            max_rounds: i32::from(snapshot.max_rounds),
-            used_words: snapshot.used_words.clone(),
-            spectators: snapshot.spectators.clone(),
-            timer_vote_state: snapshot.timer_vote_state.clone(),
         }
     }
 }

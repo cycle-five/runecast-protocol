@@ -19,9 +19,8 @@ use super::types::{
     default_dictionary, AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState,
     DebugHandlerGameState, DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode,
     GameChange, GameConfig, GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo,
-    LobbyPlayerInfo, LobbyType, ModeCap, NewsItemPayload, PlayerInfo, PlayerName, Position,
-    RematchCountdownState, RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState,
-    TurnPassReason,
+    LobbyPlayerInfo, LobbyType, ModeCap, NewsItemPayload, Position, RematchCountdownState,
+    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState, TurnPassReason,
 };
 
 /// Messages sent from server to client.
@@ -45,31 +44,6 @@ pub enum ServerMessage {
         server_version: Option<String>,
     },
 
-    /// Successful authentication response.
-    ///
-    /// Contains the full initial state snapshot.
-    Ready {
-        /// Unique session ID for this connection
-        session_id: String,
-        /// The authenticated player's user ID
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        /// Full lobby state (if in a lobby)
-        #[serde(skip_serializing_if = "Option::is_none")]
-        lobby: Option<LobbySnapshot>,
-        /// Full game state (if in a game)
-        #[serde(skip_serializing_if = "Option::is_none")]
-        game: Option<GameSnapshot>,
-    },
-
-    /// Session resumed successfully after reconnect.
-    ///
-    /// Contains any events missed during disconnection.
-    Resumed {
-        /// Events that occurred while disconnected
-        missed_events: Vec<ServerMessage>,
-    },
-
     /// Heartbeat response.
     ///
     /// Echoes back for latency calculation.
@@ -77,11 +51,6 @@ pub enum ServerMessage {
         /// Server timestamp when heartbeat was received
         server_time: u64,
     },
-
-    /// Session is invalid or expired.
-    ///
-    /// Client should re-authenticate.
-    InvalidSession { reason: String },
 
     // ========================================================================
     // Lobby State Messages
@@ -119,12 +88,6 @@ pub enum ServerMessage {
         game_id: String,
         /// The mode whose cap was reached.
         game_type: GameType,
-    },
-
-    /// Custom lobby was created successfully.
-    CustomLobbyCreated {
-        lobby_id: String,
-        lobby_code: String,
     },
     // ========================================================================
     // Game Lifecycle Messages
@@ -488,20 +451,6 @@ pub enum ServerMessage {
         game_id: String,
     },
 
-    /// Spectator joined as player.
-    SpectatorBecamePlayer {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        /// The player's raw Discord username: the unique handle. Display
-        /// `name` instead when it is present.
-        username: String,
-        /// What to call this player. Absent from servers older than protocol
-        /// 0.20; fall back to `username`.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        name: Option<PlayerName>,
-        game_id: String,
-    },
-
     /// Confirmation of leaving spectator mode.
     SpectatorLeft,
 
@@ -587,26 +536,6 @@ pub enum ServerMessage {
     },
 
     // ========================================================================
-    // Game Pool Messages (Legacy)
-    // ========================================================================
-    /// Player joined the game pool.
-    PoolJoined {
-        position: i32,
-        total_in_pool: i32,
-        game_id: String,
-    },
-
-    /// Pool position updated.
-    PoolUpdate {
-        position: i32,
-        total_in_pool: i32,
-        game_id: String,
-    },
-
-    /// Left the pool.
-    PoolLeft,
-
-    // ========================================================================
     // Admin Messages
     // ========================================================================
     /// Response to admin game list request.
@@ -618,23 +547,6 @@ pub enum ServerMessage {
     // ========================================================================
     // Legacy Compatibility Messages
     // ========================================================================
-    /// Generic state update (legacy format).
-    ///
-    /// Used for backward compatibility with existing frontend.
-    #[serde(rename = "game_state")]
-    GameStateUpdate {
-        game_id: String,
-        state: String,
-        grid: Grid,
-        players: Vec<PlayerInfo>,
-        current_turn: i64,
-        round: i32,
-        max_rounds: i32,
-        used_words: Vec<String>,
-        spectators: Vec<SpectatorInfo>,
-        timer_vote_state: TimerVoteState,
-    },
-
     /// Lobby state update (legacy format).
     #[serde(rename = "lobby_state")]
     LobbyStateUpdate {
@@ -722,17 +634,13 @@ impl ServerMessage {
     pub fn message_type(&self) -> &'static str {
         match self {
             Self::Hello { .. } => "hello",
-            Self::Ready { .. } => "ready",
-            Self::Resumed { .. } => "resumed",
             Self::HeartbeatAck { .. } => "heartbeat_ack",
-            Self::InvalidSession { .. } => "invalid_session",
             Self::LobbyJoined { .. } => "lobby_joined",
             Self::LobbySnapshot { .. } => "lobby_snapshot",
             Self::LobbyDelta { .. } => "lobby_delta",
             Self::LobbyLeft => "lobby_left",
             Self::ConnectionReplaced => "connection_replaced",
             Self::GameFull { .. } => "game_full",
-            Self::CustomLobbyCreated { .. } => "custom_lobby_created",
             Self::GameStarted { .. } => "game_started",
             Self::GameSnapshot { .. } => "game_snapshot",
             Self::GameDelta { .. } => "game_delta",
@@ -761,7 +669,6 @@ impl ServerMessage {
             Self::SpectatorAdded { .. } => "spectator_added",
             Self::SpectatorRemoved { .. } => "spectator_removed",
             Self::SpectatorLeft => "spectator_left",
-            Self::SpectatorBecamePlayer { .. } => "spectator_became_player",
             Self::SelectionUpdate { .. } => "selection_update",
             Self::TimerVoteUpdate { .. } => "timer_vote_update",
             Self::TurnTimerStarted { .. } => "turn_timer_started",
@@ -769,12 +676,8 @@ impl ServerMessage {
             Self::RematchCountdownUpdate { .. } => "rematch_countdown_update",
             Self::PlayerLeftRematch { .. } => "player_left_rematch",
             Self::RematchStarting { .. } => "rematch_starting",
-            Self::PoolJoined { .. } => "pool_joined",
-            Self::PoolUpdate { .. } => "pool_update",
-            Self::PoolLeft => "pool_left",
             Self::AdminGamesList { .. } => "admin_games_list",
             Self::AdminGameDeleted { .. } => "admin_game_deleted",
-            Self::GameStateUpdate { .. } => "game_state",
             Self::LobbyStateUpdate { .. } => "lobby_state",
             Self::DebugStateResponse { .. } => "debug_state_response",
 
@@ -895,33 +798,6 @@ mod tests {
     use crate::protocol::{types, GameType};
 
     #[test]
-    fn spectator_became_player_carries_the_name_on_the_wire() {
-        let msg = ServerMessage::SpectatorBecamePlayer {
-            player_id: 1_234_567_890_123_456_789,
-            username: "ada".to_string(),
-            name: Some(PlayerName::new("Ada", Some("Rune Queen".into()))),
-            game_id: "g1".to_string(),
-        };
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains(r#""name":{"discord":"Ada","runecast":"Rune Queen"}"#));
-        assert!(json.contains(r#""player_id":"1234567890123456789""#));
-    }
-
-    #[test]
-    fn spectator_became_player_without_a_name_parses_as_none() {
-        let raw = r#"{"type":"spectator_became_player","player_id":"42","username":"ada","game_id":"g1"}"#;
-        match serde_json::from_str::<ServerMessage>(raw).unwrap() {
-            ServerMessage::SpectatorBecamePlayer {
-                player_id, name, ..
-            } => {
-                assert_eq!(player_id, 42);
-                assert!(name.is_none());
-            }
-            other => panic!("wrong variant: {other:?}"),
-        }
-    }
-
-    #[test]
     fn test_server_message_into_json() {
         let msg = ServerMessage::BoardShuffled {
             player_id: 1_234_567_890,
@@ -994,14 +870,6 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"player_joined""#));
         assert!(json.contains(r#""user_id":"123""#));
-    }
-
-    #[test]
-    fn test_game_state_update_legacy() {
-        // Verify legacy format still works
-        let json = r#"{"type":"game_state","game_id":"abc","state":"in_progress","grid":[],"players":[],"current_turn":123,"round":1,"max_rounds":5,"used_words":[],"spectators":[],"timer_vote_state":{"status":"idle"}}"#;
-        let msg: ServerMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ServerMessage::GameStateUpdate { .. }));
     }
 
     #[test]
