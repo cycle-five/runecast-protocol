@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{AdventureEventKind, GameConfig, GameMode, GameType, Position};
+use super::types::{AdventureEventKind, GameConfig, GameType, Position};
 
 /// Messages sent from client to server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,29 +24,10 @@ pub enum ClientMessage {
     // ========================================================================
     // Connection Messages
     // ========================================================================
-    /// Initial identification after WebSocket connect.
-    ///
-    /// If `resume_seq` is provided, attempt to resume a previous session
-    /// and receive missed messages since that sequence number.
-    Identify {
-        /// Last seen sequence number (for session resumption)
-        #[serde(skip_serializing_if = "Option::is_none")]
-        resume_seq: Option<u64>,
-    },
-
     /// Keep-alive ping. Server responds with `HeartbeatAck`.
     ///
     /// Should be sent every 20-30 seconds to survive proxy timeouts.
     Heartbeat,
-
-    /// Explicit acknowledgment of received messages.
-    ///
-    /// Can be used when no other message is being sent to confirm receipt.
-    /// Usually, acks are piggybacked on other messages via the envelope.
-    Ack {
-        /// Sequence number being acknowledged
-        seq: u64,
-    },
 
     /// Request a full state sync from the server.
     ///
@@ -110,10 +91,6 @@ pub enum ClientMessage {
     // ========================================================================
     // Game Lifecycle Messages
     // ========================================================================
-    /// Request to create a new game (legacy - prefer `StartGame`).
-    #[serde(rename = "create_game")]
-    CreateGame { mode: GameMode },
-
     /// Host-only: update the live sandbox config for the current lobby.
     /// Rejected by the server if the caller is not the host or lacks the
     /// `sandbox_enabled` capability.
@@ -303,9 +280,7 @@ impl ClientMessage {
     #[must_use]
     pub fn message_type(&self) -> &'static str {
         match self {
-            Self::Identify { .. } => "identify",
             Self::Heartbeat => "heartbeat",
-            Self::Ack { .. } => "ack",
             Self::RequestSync => "request_sync",
             Self::DebugState => "debug_state",
             Self::JoinChannelLobby { .. } => "join_channel_lobby",
@@ -314,7 +289,6 @@ impl ClientMessage {
             Self::LeaveLobby => "leave_lobby",
             Self::JoinGamePool { .. } => "join_game_pool",
             Self::LeaveGamePool => "leave_game_pool",
-            Self::CreateGame { .. } => "create_game",
             Self::SetSandboxConfig { .. } => "set_sandbox_config",
             Self::TriggerAdventureEvent { .. } => "trigger_adventure_event",
             Self::StartGame { .. } => "start_game",

@@ -55,19 +55,15 @@ The `MaybeEnveloped<T>` type accepts both formats, enabling gradual migration.
 ```rust
 pub enum ClientMessage {
     // Connection
-    Identify { token: String },
     Heartbeat,
-    Ack { seq: u64 },
     
     // Lobby
     JoinChannelLobby { channel_id: String, guild_id: Option<String> },
     CreateCustomLobby,
     JoinCustomLobby { lobby_code: String },
     LeaveLobby,
-    ToggleReady,
     
     // Game
-    CreateGame,
     StartGame,
     SubmitWord { word: String, positions: Vec<Position> },
     PassTurn,
@@ -84,7 +80,6 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     // Connection
     Hello { session_id: String, server_time: u64 },
-    Ready { player: PlayerInfo },
     HeartbeatAck { server_time: u64 },
     
     // Game Events
@@ -143,9 +138,6 @@ let (msg, seq, ack) = compat::parse_client_message(&json_text)?;
 
 // Serialize outgoing (envelope optional)
 let json = compat::serialize_server_message(&response, Some(seq), Some(ack))?;
-
-// Convert between legacy and new formats
-let snapshot = compat::legacy_game_state_to_snapshot(old_value)?;
 ```
 
 ## Usage

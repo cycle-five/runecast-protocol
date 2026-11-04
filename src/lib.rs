@@ -32,10 +32,7 @@ pub mod protocol;
 
 // Re-export commonly used items at crate root for convenience
 pub use player::{PlayerContext, PlayerIdentity};
-pub use protocol::compat::{
-    legacy_game_state_to_snapshot, parse_client_message, serialize_server_message,
-    snapshot_to_legacy_game_state,
-};
+pub use protocol::compat::{parse_client_message, serialize_server_message};
 pub use protocol::{
     client_messages::ClientMessage,
     envelope::{Envelope, MaybeEnveloped},
