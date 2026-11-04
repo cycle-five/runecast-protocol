@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["legacy_game_state_to_snapshot","parse_client_message","serialize_server_message","snapshot_to_legacy_game_state"]};
+window.SIDEBAR_ITEMS = {"fn":["parse_client_message","serialize_server_message"]};
