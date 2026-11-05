@@ -2,17 +2,15 @@
 //!
 //! This crate defines the WebSocket protocol for `RuneCast`, including:
 //!
-//! - Message envelopes with sequence numbers for reliable delivery
 //! - Client-to-server message types
 //! - Server-to-client message types
 //! - Shared data types (`Grid`, `Position`, `PlayerInfo`, etc.)
 //! - Player identity and context types
-//! - Compatibility layer for gradual migration
 //!
 //! # Usage
 //!
 //! ```rust
-//! use runecast_protocol::protocol::{ClientMessage, ServerMessage, Envelope};
+//! use runecast_protocol::protocol::{ClientMessage, ServerMessage};
 //!
 //! // Parse an incoming client message
 //! let json = r#"{"type":"heartbeat"}"#;
@@ -23,8 +21,9 @@
 //!     server_time: 1701234567890,
 //! };
 //!
-//! // Optionally wrap in envelope for reliable delivery
-//! let envelope = Envelope::new(42, response);
+//! // Serialize it for the wire
+//! let wire = serde_json::to_string(&response).unwrap();
+//! assert!(wire.contains(r#""type":"heartbeat_ack""#));
 //! ```
 
 pub mod player;
@@ -32,19 +31,17 @@ pub mod protocol;
 
 // Re-export commonly used items at crate root for convenience
 pub use player::{PlayerContext, PlayerIdentity};
-pub use protocol::compat::{parse_client_message, serialize_server_message};
 pub use protocol::{
     client_messages::ClientMessage,
-    envelope::{Envelope, MaybeEnveloped},
     server_messages::ServerMessage,
     types::{
         default_dictionary, AdminGameInfo, AdventureEventKind, BotDifficulty, BotSpec, BuildInfo,
         ConnectKind, ConnectParams, CustomMeta, DebugBackendGameState, DebugHandlerGameState,
         DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode, EventConfig,
-        GameChange, GameConfig, GamePlayerInfo, GameSnapshot, GameState, GameSummary, Grid,
-        GridCell, LobbyChange, LobbyGameInfo, LobbyGamePlayerInfo, LobbyPlayerInfo, LobbyType,
-        ModeCap, Multiplier, PlayerInfo, PlayerName, Position, RuneBoxStanding, ScoreInfo,
-        SpectatorInfo, TimerVoteState, TurnPassReason, MAIN_DICTIONARY,
+        GameConfig, GamePlayerInfo, GameSnapshot, GameState, GameSummary, Grid, GridCell,
+        LobbyChange, LobbyGameInfo, LobbyGamePlayerInfo, LobbyPlayerInfo, LobbyType, ModeCap,
+        Multiplier, PlayerInfo, PlayerName, Position, RuneBoxStanding, ScoreInfo, SpectatorInfo,
+        TimerVoteState, TurnPassReason, MAIN_DICTIONARY,
     },
     LobbySnapshot,
 };

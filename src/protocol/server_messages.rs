@@ -18,9 +18,9 @@ use crate::protocol::GameType;
 use super::types::{
     default_dictionary, AdminGameInfo, AdventureEventKind, CustomMeta, DebugBackendGameState,
     DebugHandlerGameState, DebugLobbyState, DebugPlayerInfo, DebugWebsocketContext, ErrorCode,
-    GameChange, GameConfig, GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo,
-    LobbyPlayerInfo, LobbyType, ModeCap, NewsItemPayload, Position, RematchCountdownState,
-    RuneBoxStanding, ScoreInfo, SpectatorInfo, TimerVoteState, TurnPassReason,
+    GameConfig, GamePlayerInfo, GameSnapshot, Grid, LobbyChange, LobbyGameInfo, LobbyPlayerInfo,
+    LobbyType, ModeCap, NewsItemPayload, Position, RematchCountdownState, RuneBoxStanding,
+    ScoreInfo, SpectatorInfo, TimerVoteState, TurnPassReason,
 };
 
 /// Messages sent from server to client.
@@ -139,12 +139,6 @@ pub enum ServerMessage {
     ///
     /// Sent when joining as spectator or when delta sync fails.
     GameSnapshot { game_id: String, game: GameSnapshot },
-
-    /// Incremental game state update.
-    GameDelta {
-        game_id: String,
-        changes: Vec<GameChange>,
-    },
 
     /// Game has ended normally.
     GameOver {
@@ -474,14 +468,6 @@ pub enum ServerMessage {
         game_id: String,
     },
 
-    /// Turn timer started (vote passed).
-    TurnTimerStarted {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        target_player_id: i64,
-        game_id: String,
-        seconds: u32,
-    },
-
     /// Turn timer expired - player auto-passed.
     TurnTimerExpired {
         #[serde_as(as = "serde_with::DisplayFromStr")]
@@ -643,7 +629,6 @@ impl ServerMessage {
             Self::GameFull { .. } => "game_full",
             Self::GameStarted { .. } => "game_started",
             Self::GameSnapshot { .. } => "game_snapshot",
-            Self::GameDelta { .. } => "game_delta",
             Self::GameOver { .. } => "game_over",
             Self::GameCancelled { .. } => "game_cancelled",
             Self::AdventureLevelResult { .. } => "adventure_level_result",
@@ -671,7 +656,6 @@ impl ServerMessage {
             Self::SpectatorLeft => "spectator_left",
             Self::SelectionUpdate { .. } => "selection_update",
             Self::TimerVoteUpdate { .. } => "timer_vote_update",
-            Self::TurnTimerStarted { .. } => "turn_timer_started",
             Self::TurnTimerExpired { .. } => "turn_timer_expired",
             Self::RematchCountdownUpdate { .. } => "rematch_countdown_update",
             Self::PlayerLeftRematch { .. } => "player_left_rematch",
@@ -691,40 +675,6 @@ impl ServerMessage {
     #[must_use]
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error { .. })
-    }
-
-    /// Check if this message should be stored for reconnection replay.
-    ///
-    /// Some messages are transient and don't need to be replayed.
-    #[must_use]
-    pub fn should_store_for_replay(&self) -> bool {
-        !matches!(
-            self,
-            Self::Hello { .. }
-                | Self::HeartbeatAck { .. }
-                | Self::SelectionUpdate { .. }
-                | Self::TimerVoteUpdate {
-                    state: TimerVoteState::Idle,
-                    ..
-                }
-                | Self::PlayerPoolChanged { .. }
-                | Self::TurnTimerStarted { .. }
-                | Self::TurnTimerExpired { .. }
-                | Self::DebugStateResponse { .. }
-                // News is re-fetched from /api/news on (re)connect, so
-                // replaying a stale announcement would either duplicate
-                // a still-active item or surface one that has since
-                // expired/been deleted. Skip replay; the HTTP fetch is
-                // authoritative.
-                | Self::NewsAnnounced { .. }
-        )
-    }
-}
-
-/// Convert a `ServerMessage` to a `serde_json::Value`.
-impl From<ServerMessage> for serde_json::Value {
-    fn from(msg: ServerMessage) -> Self {
-        serde_json::to_value(msg).unwrap()
     }
 }
 
@@ -870,25 +820,6 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains(r#""type":"player_joined""#));
         assert!(json.contains(r#""user_id":"123""#));
-    }
-
-    #[test]
-    fn test_should_store_for_replay() {
-        assert!(!ServerMessage::HeartbeatAck { server_time: 0 }.should_store_for_replay());
-        assert!(ServerMessage::PlayerJoined {
-            player: LobbyPlayerInfo {
-                user_id: 1,
-                username: "x".into(),
-                name: None,
-                avatar_url: None,
-                banner_url: None,
-                accent_color: None,
-                current_game_pool: None,
-                active_game_id: None,
-                spectate_game_id: None,
-            }
-        }
-        .should_store_for_replay());
     }
 
     #[test]
@@ -1335,26 +1266,6 @@ mod tests {
             }
             _ => panic!("Expected NewsAnnounced"),
         }
-    }
-
-    #[test]
-    fn test_news_announced_excluded_from_replay() {
-        // News is re-fetched from /api/news on reconnect, so replaying
-        // the original announcement would duplicate or surface stale.
-        let msg = ServerMessage::NewsAnnounced {
-            item: NewsItemPayload {
-                id: "x".to_string(),
-                title: "t".to_string(),
-                message: "m".to_string(),
-                notification_type: NewsNotificationType::Announcement,
-                created_at: chrono::Utc::now(),
-                expires_at: None,
-                auto_hide_seconds: 0,
-                refresh_on_every_login: false,
-                priority: 0,
-            },
-        };
-        assert!(!msg.should_store_for_replay());
     }
 
     #[test]
