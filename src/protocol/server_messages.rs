@@ -67,7 +67,8 @@ pub enum ServerMessage {
 
     /// Full lobby state snapshot.
     ///
-    /// Sent on initial join.
+    /// Sent whenever a lobby change needs the whole state (sandbox config,
+    /// a host transfer after a player leaves).
     LobbySnapshot { lobby: LobbySnapshot },
 
     /// Incremental lobby state update.
