@@ -7,7 +7,7 @@
 //!
 //! - **Connection**: Handshake responses, heartbeat acks
 //! - **Lobby State**: Snapshots and deltas for lobby state
-//! - **Game State**: Snapshots and deltas for game state
+//! - **Game State**: Full game snapshots; changes arrive as discrete events
 //! - **Events**: Discrete events (player joined, word scored, etc.)
 //! - **Errors**: Error responses with codes and messages
 
@@ -67,8 +67,8 @@ pub enum ServerMessage {
 
     /// Full lobby state snapshot.
     ///
-    /// Sent whenever a lobby change needs the whole state (sandbox config,
-    /// a host transfer after a player leaves).
+    /// Sent on `request_sync`, and whenever a lobby change needs the whole
+    /// state (sandbox config, a host transfer after a player leaves).
     LobbySnapshot { lobby: LobbySnapshot },
 
     /// Incremental lobby state update.
@@ -136,9 +136,10 @@ pub enum ServerMessage {
         dictionary: String,
     },
 
-    /// Full game state snapshot.
-    ///
-    /// Sent when joining as a spectator.
+    /// Full game state snapshot, sent to a player: on a mid-game `join_game`,
+    /// on `request_sync`, when their seat comes back live or the table is
+    /// refreshed, and on every RuneBox round change. A spectator gets
+    /// `SpectatorJoined` instead.
     GameSnapshot { game_id: String, game: GameSnapshot },
 
     /// Game has ended normally.
