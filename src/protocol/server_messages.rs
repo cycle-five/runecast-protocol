@@ -67,7 +67,7 @@ pub enum ServerMessage {
 
     /// Full lobby state snapshot.
     ///
-    /// Sent on initial join or when delta sync fails.
+    /// Sent on initial join.
     LobbySnapshot { lobby: LobbySnapshot },
 
     /// Incremental lobby state update.
@@ -137,7 +137,7 @@ pub enum ServerMessage {
 
     /// Full game state snapshot.
     ///
-    /// Sent when joining as spectator or when delta sync fails.
+    /// Sent when joining as a spectator.
     GameSnapshot { game_id: String, game: GameSnapshot },
 
     /// Game has ended normally.
@@ -445,9 +445,6 @@ pub enum ServerMessage {
         game_id: String,
     },
 
-    /// Confirmation of leaving spectator mode.
-    SpectatorLeft,
-
     // ========================================================================
     // Live Update Messages
     // ========================================================================
@@ -653,7 +650,6 @@ impl ServerMessage {
             Self::SpectatorJoined { .. } => "spectator_joined",
             Self::SpectatorAdded { .. } => "spectator_added",
             Self::SpectatorRemoved { .. } => "spectator_removed",
-            Self::SpectatorLeft => "spectator_left",
             Self::SelectionUpdate { .. } => "selection_update",
             Self::TimerVoteUpdate { .. } => "timer_vote_update",
             Self::TurnTimerExpired { .. } => "turn_timer_expired",
