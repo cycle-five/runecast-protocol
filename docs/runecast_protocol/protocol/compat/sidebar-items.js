@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["parse_client_message","serialize_server_message"]};
