@@ -16,7 +16,7 @@ This crate defines the message types that flow between client and server. It's t
 ## Design Goals
 
 1. **Single source of truth** - Message types defined once, used everywhere
-2. **Backward compatible** - Envelope is opt-in, legacy messages still work
+2. **Plain JSON** - every message is one tagged object, `{"type": ...}`
 3. **Type-safe** - Strongly typed error codes, game states, positions
 4. **Serialization-ready** - All types derive Serialize/Deserialize
 
@@ -24,31 +24,13 @@ This crate defines the message types that flow between client and server. It's t
 
 ```
 src/protocol/
-├── mod.rs              # Re-exports, constants, compat module
-├── envelope.rs         # Envelope<T>, MaybeEnveloped<T>
+├── mod.rs              # Re-exports, constants
 ├── types.rs            # Shared types (Position, Grid, PlayerInfo, etc.)
 ├── client_messages.rs  # ClientMessage enum (26 variants)
 └── server_messages.rs  # ServerMessage enum (40+ variants)
 ```
 
 ## Key Types
-
-### Envelope (Optional Wrapper)
-
-```rust
-// New format with envelope
-{
-  "seq": 42,
-  "ack": 41,
-  "timestamp": 1699900000000,
-  "payload": { "type": "heartbeat" }
-}
-
-// Legacy format (still supported)
-{ "type": "heartbeat" }
-```
-
-The `MaybeEnveloped<T>` type accepts both formats, enabling gradual migration.
 
 ### Client Messages
 
@@ -99,7 +81,6 @@ pub enum ServerMessage {
 
 ```rust
 pub enum ErrorCode {
-    NotAuthenticated,
     LobbyNotFound,
     LobbyFull,
     NotYourTurn,
@@ -125,20 +106,6 @@ Every player struct carries two names:
   fall back to `username`.
   The admin and debug structs (`AdminGameInfo`, `DebugPlayerInfo`) deliberately keep raw
   usernames only.
-
-## Compatibility Layer
-
-The `compat` module helps with migration:
-
-```rust
-use runecast_protocol::compat;
-
-// Parse incoming (handles both legacy and enveloped)
-let (msg, seq, ack) = compat::parse_client_message(&json_text)?;
-
-// Serialize outgoing (envelope optional)
-let json = compat::serialize_server_message(&response, Some(seq), Some(ack))?;
-```
 
 ## Usage
 

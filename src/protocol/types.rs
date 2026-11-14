@@ -643,33 +643,6 @@ pub enum RematchCountdownState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "change_type", rename_all = "snake_case")]
 pub enum LobbyChange {
-    /// A player joined the lobby
-    PlayerJoined { player: LobbyPlayerInfo },
-
-    /// A player left the lobby
-    PlayerLeft {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-    },
-
-    /// A player's connection state changed
-    PlayerConnectionChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        is_connected: bool,
-    },
-
-    /// A game's state changed
-    GameStateChanged { game_id: String, state: GameState },
-
-    /// Pool count updated for a game
-    PoolUpdated { game_id: String, pool_count: u32 },
-
-    /// Host changed
-    HostChanged { new_host_id: String },
-
     /// The lobby's auto-rematch setting changed. Any lobby member may change it.
     AutoRematchChanged {
         enabled: bool,
@@ -682,56 +655,6 @@ pub enum LobbyChange {
         dictionary: String,
         #[serde_as(as = "serde_with::DisplayFromStr")]
         changed_by: i64,
-    },
-}
-
-/// Changes to game state (for delta updates).
-#[serde_with::serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "change_type", rename_all = "snake_case")]
-pub enum GameChange {
-    /// Grid was updated (after word submission)
-    GridUpdated {
-        grid: Grid,
-        /// Positions that were replaced
-        #[serde(skip_serializing_if = "Option::is_none")]
-        replaced_positions: Option<Vec<Position>>,
-    },
-
-    /// A player's score changed
-    ScoreUpdated {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        score: i32,
-        gems: i32,
-    },
-
-    /// Turn changed to another player
-    TurnChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-    },
-
-    /// Round number changed
-    RoundChanged { round: u8 },
-
-    /// A word was added to used words
-    WordUsed { word: String },
-
-    /// A spectator joined the game
-    SpectatorJoined { spectator: SpectatorInfo },
-
-    /// A spectator left the game
-    SpectatorLeft {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        spectator_id: i64,
-    },
-
-    /// A player's connection state changed
-    PlayerConnectionChanged {
-        #[serde_as(as = "serde_with::DisplayFromStr")]
-        player_id: i64,
-        is_connected: bool,
     },
 }
 
@@ -758,11 +681,6 @@ pub struct AdminGameInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
-    // Connection errors
-    NotAuthenticated,
-    SessionExpired,
-    InvalidSession,
-
     // Lobby errors
     LobbyNotFound,
     LobbyFull,
@@ -779,7 +697,6 @@ pub enum ErrorCode {
     // Turn errors
     NotYourTurn,
     InvalidAction,
-    ActionTimeout,
 
     // Word submission errors
     InvalidPath,
@@ -799,10 +716,6 @@ pub enum ErrorCode {
     // Resource errors
     InsufficientGems,
 
-    // Rate limiting
-    TooManyRequests,
-    MessageTooLarge,
-
     // Generic
     InvalidRequest,
     InternalError,
@@ -813,9 +726,6 @@ impl ErrorCode {
     #[must_use]
     pub fn message(&self) -> &'static str {
         match self {
-            Self::NotAuthenticated => "Not authenticated",
-            Self::SessionExpired => "Session expired",
-            Self::InvalidSession => "Invalid session",
             Self::LobbyNotFound => "Lobby not found",
             Self::LobbyFull => "Lobby is full",
             Self::NotInLobby => "You must be in a lobby",
@@ -827,7 +737,6 @@ impl ErrorCode {
             Self::AlreadyInGame => "You are already in this game",
             Self::NotYourTurn => "It's not your turn",
             Self::InvalidAction => "Invalid action",
-            Self::ActionTimeout => "Action timed out",
             Self::InvalidPath => "Invalid path - letters must be adjacent",
             Self::PathTooShort => "Word must be at least 3 letters",
             Self::WordNotInDictionary => "Word not found in dictionary",
@@ -837,8 +746,6 @@ impl ErrorCode {
             Self::TooManyPlayers => "Too many players",
             Self::NotAuthorized => "You are not authorized to do this",
             Self::InsufficientGems => "Not enough gems",
-            Self::TooManyRequests => "Too many requests",
-            Self::MessageTooLarge => "Message too large",
             Self::InvalidRequest => "Invalid request",
             Self::InternalError => "Internal server error",
         }
@@ -1210,21 +1117,13 @@ mod tests {
 
     #[test]
     fn test_lobby_change_serialization() {
-        let change = LobbyChange::PlayerJoined {
-            player: LobbyPlayerInfo {
-                user_id: 123,
-                username: "TestUser".to_string(),
-                name: None,
-                avatar_url: None,
-                banner_url: None,
-                accent_color: None,
-                current_game_pool: None,
-                active_game_id: None,
-                spectate_game_id: None,
-            },
+        let change = LobbyChange::DictionaryChanged {
+            dictionary: "main".to_string(),
+            changed_by: 123,
         };
         let json = serde_json::to_string(&change).unwrap();
-        assert!(json.contains(r#""change_type":"player_joined""#));
+        assert!(json.contains(r#""change_type":"dictionary_changed""#));
+        assert!(json.contains(r#""changed_by":"123""#));
     }
 
     #[test]
@@ -2130,5 +2029,27 @@ mod tests {
         assert_eq!(snap.dictionary, "main");
         let out = serde_json::to_string(&snap).unwrap();
         assert!(out.contains(r#""dictionary":"main""#), "{out}");
+    }
+
+    #[test]
+    fn lobby_delta_only_carries_the_two_live_changes() {
+        // `player_joined` was a LobbyChange once; the server sends the separate
+        // top-level `player_joined` message instead, so it must not parse here.
+        let gone = r#"{"type":"lobby_delta","changes":[{"change_type":"player_joined","player":{"user_id":"1","username":"x"}}]}"#;
+        assert!(serde_json::from_str::<crate::ServerMessage>(gone).is_err());
+
+        let live = r#"{"type":"lobby_delta","changes":[{"change_type":"auto_rematch_changed","enabled":true,"changed_by":"7"}]}"#;
+        let crate::ServerMessage::LobbyDelta { changes } =
+            serde_json::from_str::<crate::ServerMessage>(live).unwrap()
+        else {
+            panic!("expected LobbyDelta");
+        };
+        assert!(matches!(
+            changes.as_slice(),
+            [LobbyChange::AutoRematchChanged {
+                enabled: true,
+                changed_by: 7
+            }]
+        ));
     }
 }

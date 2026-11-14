@@ -9,7 +9,6 @@
 //! ┌─────────────────────────────────────────────────────────────────────┐
 //! │                           Protocol Layer                             │
 //! ├─────────────────────────────────────────────────────────────────────┤
-//! │  envelope.rs     - Message wrapper with seq/ack/timestamp           │
 //! │  types.rs        - Shared data types (Grid, Position, etc.)         │
 //! │  client_messages - Client → Server message definitions              │
 //! │  server_messages - Server → Client message definitions              │
@@ -34,35 +33,13 @@
 //!   │◀─── TurnChanged ────────────────────│
 //! ```
 //!
-//! # Envelope Format (Optional)
-//!
-//! Messages can be sent raw (legacy) or wrapped in an envelope (new protocol):
-//!
-//! ```json
-//! // Legacy (still supported)
-//! {"type": "heartbeat"}
-//!
-//! // With envelope
-//! {"seq": 42, "ack": 41, "ts": 1701234567890, "payload": {"type": "heartbeat"}}
-//! ```
-//!
-//! # Migration Strategy
-//!
-//! This module is designed to coexist with the legacy `websocket/messages.rs`.
-//! During migration:
-//!
-//! 1. New code imports from `protocol::`
-//! 2. Compatibility functions convert between old and new formats
-//! 3. Once migration is complete, remove legacy module
 
 pub mod client_messages;
-pub mod envelope;
 pub mod server_messages;
 pub mod types;
 
 // Re-export main types for convenient access
 pub use client_messages::ClientMessage;
-pub use envelope::{Envelope, MaybeEnveloped};
 pub use server_messages::{LobbySnapshot, ServerMessage};
 pub use types::*;
 
@@ -85,104 +62,9 @@ pub const MAX_MESSAGE_SIZE: usize = 64 * 1024; // 64 KB
 /// Protocol version for compatibility checks.
 pub const PROTOCOL_VERSION: &str = "1.0.0";
 
-// ============================================================================
-// Compatibility Layer
-// ============================================================================
-
-/// Module for converting between legacy and new message formats.
-///
-/// This allows gradual migration without breaking the existing frontend.
-pub mod compat {
-    use super::{ClientMessage, Envelope, MaybeEnveloped, ServerMessage};
-
-    /// Parse a raw JSON message, handling both legacy and new formats.
-    ///
-    /// Returns the parsed message and whether it was enveloped.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `serde_json::Error` if the message cannot be parsed.
-    pub fn parse_client_message(
-        json: &str,
-    ) -> Result<(ClientMessage, Option<u64>, Option<u64>), serde_json::Error> {
-        // First try to parse as enveloped
-        if let Ok(enveloped) = serde_json::from_str::<MaybeEnveloped<ClientMessage>>(json) {
-            match enveloped {
-                MaybeEnveloped::Enveloped(env) => {
-                    return Ok((env.payload, Some(env.seq), env.ack));
-                }
-                MaybeEnveloped::Raw(msg) => {
-                    return Ok((msg, None, None));
-                }
-            }
-        }
-
-        // Fall back to legacy parsing
-        let msg: ClientMessage = serde_json::from_str(json)?;
-        Ok((msg, None, None))
-    }
-
-    /// Serialize a server message, optionally wrapping in an envelope.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `serde_json::Error` if the message cannot be serialized.
-    pub fn serialize_server_message(
-        msg: &ServerMessage,
-        seq: Option<u64>,
-        ack: Option<u64>,
-    ) -> Result<String, serde_json::Error> {
-        match seq {
-            Some(seq) => {
-                let envelope = match ack {
-                    Some(ack) => Envelope::with_ack(seq, ack, msg),
-                    None => Envelope::new(seq, msg),
-                };
-                serde_json::to_string(&envelope)
-            }
-            None => serde_json::to_string(msg),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_legacy_heartbeat() {
-        let json = r#"{"type":"heartbeat"}"#;
-        let (msg, seq, ack) = compat::parse_client_message(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Heartbeat));
-        assert!(seq.is_none());
-        assert!(ack.is_none());
-    }
-
-    #[test]
-    fn test_parse_enveloped_heartbeat() {
-        let json = r#"{"seq":42,"ack":41,"ts":12345,"payload":{"type":"heartbeat"}}"#;
-        let (msg, seq, ack) = compat::parse_client_message(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Heartbeat));
-        assert_eq!(seq, Some(42));
-        assert_eq!(ack, Some(41));
-    }
-
-    #[test]
-    fn test_serialize_without_envelope() {
-        let msg = ServerMessage::HeartbeatAck { server_time: 12345 };
-        let json = compat::serialize_server_message(&msg, None, None).unwrap();
-        assert!(!json.contains("seq"));
-        assert!(json.contains("heartbeat_ack"));
-    }
-
-    #[test]
-    fn test_serialize_with_envelope() {
-        let msg = ServerMessage::HeartbeatAck { server_time: 12345 };
-        let json = compat::serialize_server_message(&msg, Some(1), Some(0)).unwrap();
-        assert!(json.contains(r#""seq":1"#));
-        assert!(json.contains(r#""ack":0"#));
-        assert!(json.contains("payload"));
-    }
 
     #[test]
     fn test_constants() {
